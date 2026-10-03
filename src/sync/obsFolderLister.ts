@@ -41,8 +41,9 @@ const isLikelyPluginSubFiles = (x: string) => {
 /**
  * List a hidden folder (not visible to vault.getAllLoadedFiles) via the adapter.
  * @param rootDir e.g. ".obsi" or the Obsidian config dir
- * @param pluginId if given, the plugin's own folder inside rootDir is only
- *                 listed for plugin-distribution files (data.json etc. are skipped)
+ * @param pluginId if given, only the plugin's distribution files (main.js, manifest.json,
+ *                 styles.css, data.json) are listed inside its own folder; data.json is then
+ *                 excluded from sync by ownPluginDataIgnorePattern (runMount.ts)
  */
 export const listFilesInObsFolder = async (
   rootDir: string,

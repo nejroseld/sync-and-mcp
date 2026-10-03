@@ -3,7 +3,7 @@ import { ObsiApi } from "../src/api/client";
 import type { CipherMethodType } from "../src/sync/baseTypes";
 import { FakeFsEncrypt } from "../src/sync/fsEncrypt";
 import { FakeFsSubtree } from "../src/sync/fsSubtree";
-import { runMountSync } from "../src/sync/runMount";
+import { ownPluginDataIgnorePattern, runMountSync } from "../src/sync/runMount";
 import { type SyncSettings, syncer } from "../src/sync/sync";
 import { MemoryPrevSyncStore } from "../src/sync/syncDb";
 import { FakeServer } from "./helpers/fakeServer";
@@ -407,5 +407,37 @@ describe("FakeFsObsiServer / API client wire format", () => {
     });
     expect(res2.ok).to.equal(false);
     expect(res2.error?.message).to.include("network down");
+  });
+});
+
+describe("plugin's own data.json (per-device secrets)", () => {
+  it("is never pushed nor pulled, even with config dir sync on", async () => {
+    const settings: SyncSettings = {
+      protectModifyPercentage: -1,
+      syncConfigDir: true,
+      ignorePaths: [ownPluginDataIgnorePattern(".obsidian", "obsi-sync")],
+    };
+    const remote = new MemFs("remote");
+    const a = device({
+      "n.md": "note",
+      ".obsidian/app.json": "{}",
+      ".obsidian/plugins/obsi-sync/main.js": "code",
+      ".obsidian/plugins/obsi-sync/data.json": '{"deviceToken":"A"}',
+    });
+    await doSync(a, remote, { settings });
+
+    const b = device({ ".obsidian/plugins/obsi-sync/data.json": '{"deviceToken":"B"}' });
+    await doSync(b, remote, { settings });
+    expect(b.local.text("n.md")).to.equal("note");
+    expect(b.local.text(".obsidian/plugins/obsi-sync/main.js")).to.equal("code");
+    expect(b.local.text(".obsidian/plugins/obsi-sync/data.json")).to.equal('{"deviceToken":"B"}');
+
+    // a data.json already on the server (synced by an older build) is not pulled either
+    const legacy = new MemFs("remote");
+    const old = device({ ".obsidian/plugins/obsi-sync/data.json": '{"deviceToken":"OLD"}' });
+    await doSync(old, legacy, { settings: { protectModifyPercentage: -1, syncConfigDir: true } });
+    const c = device({ ".obsidian/plugins/obsi-sync/data.json": '{"deviceToken":"C"}' });
+    await doSync(c, legacy, { settings });
+    expect(c.local.text(".obsidian/plugins/obsi-sync/data.json")).to.equal('{"deviceToken":"C"}');
   });
 });

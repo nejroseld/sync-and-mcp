@@ -6,7 +6,7 @@ import type { SyncTriggerSourceType } from "./sync/baseTypes";
 import { FakeFsLocal } from "./sync/fsLocal";
 import { normalizeMountPath } from "./sync/mounts";
 import { LocalForagePrevSyncStore } from "./sync/prevSyncDb";
-import { runMountSync } from "./sync/runMount";
+import { ownPluginDataIgnorePattern, runMountSync } from "./sync/runMount";
 import type { SyncSettings } from "./sync/sync";
 
 export interface MountStatus {
@@ -111,6 +111,7 @@ export class SyncManager {
           howToCleanEmptyFolder: "clean_both",
           protectModifyPercentage: s.protectModifyPercentage,
           skipSizeLargerThan: -1,
+          ignorePaths: [ownPluginDataIgnorePattern(configDir, this.host.pluginId)],
         };
         const res = await runMountSync({
           api,

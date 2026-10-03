@@ -12,6 +12,15 @@ import {
 import { type SyncResult, type SyncSettings, syncer } from "./sync";
 import type { PrevSyncStore } from "./syncDb";
 
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The plugin's own data.json holds per-device secrets (device/admin tokens, vault passwords):
+ * it must never be synced, in either direction, even when the config dir is synced.
+ */
+export const ownPluginDataIgnorePattern = (configDir: string, pluginId: string) =>
+  `^${escapeRegex(configDir)}/plugins/${escapeRegex(pluginId)}/data\\.json$`;
+
 export interface RunMountParams {
   api: ObsiApi;
   vaultId: string;
