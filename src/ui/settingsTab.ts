@@ -1,6 +1,7 @@
 import { type App, Notice, PluginSettingTab, Setting } from "obsidian";
 import {
-  DEFAULT_RULES,
+  STARTER_RULES,
+  isCheckboxRule,
   type FolderRule,
   type PropertyRule,
   type RuleBase,
@@ -11,6 +12,7 @@ import type ObsiSyncPlugin from "../main";
 import {
   type MountConfig,
   exportMounts,
+  isConfigured,
   parseMountsImport,
   validateMounts,
 } from "../settings";
@@ -39,12 +41,19 @@ export class ObsiSettingTab extends PluginSettingTab {
 
   private async save() {
     await this.plugin.saveSettings();
+    this.plugin.updateStatus();
   }
 
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("obsi-sync-settings");
+    if (!isConfigured(this.plugin.settings)) {
+      new Setting(containerEl)
+        .setName("Not set up yet")
+        .setDesc("Nothing is synced until a server and a vault are connected. Everything below is optional.")
+        .addButton((b) => b.setButtonText("Set up").setCta().onClick(() => this.plugin.openSetup()));
+    }
     this.sectionConnection(containerEl);
     this.sectionSync(containerEl);
     this.sectionMounts(containerEl);
@@ -410,10 +419,13 @@ export class ObsiSettingTab extends PluginSettingTab {
     if (draft === null) {
       new Setting(el)
         .setName("No rules file")
-        .setDesc("This device does not publish. Create .obsi/ai-rules.json (synced to other devices of the root vault).")
+        .setDesc(
+          "This device does not publish. Create .obsi/ai-rules.json (synced to other devices of the root vault). " +
+            "Starts with: nothing is shared unless the note's “ai” checkbox is ticked; new notes get the checkbox."
+        )
         .addButton((b) =>
           b.setButtonText("Create").onClick(async () => {
-            await this.plugin.rules.save({ ...DEFAULT_RULES, rules: [] });
+            await this.plugin.rules.save(structuredClone(STARTER_RULES));
             await this.loadRules();
           })
         );
@@ -477,6 +489,17 @@ export class ObsiSettingTab extends PluginSettingTab {
               pr.value = parseValue(v);
             })
         );
+        if (isCheckboxRule(pr)) {
+          row.setDesc(`New notes get “${pr.key}: ${!pr.value}” (toggle on the right) — tick it in the note to apply the rule.`);
+          row.addToggle((t) =>
+            t
+              .setTooltip("Add to new notes")
+              .setValue(pr.addToNewNotes === true)
+              .onChange((v) => {
+                pr.addToNewNotes = v;
+              })
+          );
+        }
       } else {
         row.setDesc(`Unknown rule type "${r.type}" (kept as is)`);
       }

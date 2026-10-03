@@ -36,6 +36,8 @@ export interface ObsiSettings {
   aiMaxFileMB: number;
   changesPollMinutes: number;
   statusBar: boolean;
+  /** the welcome window was shown (answered or skipped) */
+  onboardingDone: boolean;
 }
 
 export const DEFAULT_SETTINGS: ObsiSettings = {
@@ -57,7 +59,14 @@ export const DEFAULT_SETTINGS: ObsiSettings = {
   aiMaxFileMB: 25,
   changesPollMinutes: 2,
   statusBar: true,
+  onboardingDone: false,
 };
+
+/** Enough to sync: server, device token and at least one mount with a vault and a password. */
+export const isConfigured = (s: ObsiSettings): boolean =>
+  s.serverUrl.trim() !== "" &&
+  s.deviceToken.trim() !== "" &&
+  s.mounts.some((m) => m.vaultId !== "" && m.password !== "");
 
 export const normalizeSettings = (raw: any): ObsiSettings => {
   const s: ObsiSettings = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
@@ -70,6 +79,8 @@ export const normalizeSettings = (raw: any): ObsiSettings => {
       m.encryptionMethod === "openssl-base64" ? "openssl-base64" : "rclone-base64",
   }));
   if (s.conflictAction !== "keep_larger") s.conflictAction = "keep_newer";
+  // installs configured before the welcome window existed should not see it
+  if (raw?.onboardingDone === undefined && isConfigured(s)) s.onboardingDone = true;
   return s;
 };
 

@@ -26,6 +26,8 @@ export interface PropertyRule extends RuleBase {
   key: string;
   op: PropertyOp;
   value?: unknown;
+  /** insert this property, unticked, into every new note (checkbox rules only) */
+  addToNewNotes?: boolean;
 }
 
 export interface RulesConfig {
@@ -339,6 +341,33 @@ export const DEFAULT_RULES: RulesConfig = {
   version: 1,
   mode: "deny_by_default",
   rules: [],
+};
+
+/** Starter rules: nothing is shared until the note's `ai` checkbox is ticked. */
+export const STARTER_RULES: RulesConfig = {
+  version: 1,
+  mode: "deny_by_default",
+  rules: [
+    { id: "r1", type: "property", effect: "include", key: "ai", op: "equals", value: true, addToNewNotes: true },
+  ],
+};
+
+/** A property rule that can be shown as a checkbox: `key equals true|false`. */
+export const isCheckboxRule = (r: RuleBase): r is PropertyRule =>
+  r.type === "property" && r.op === "equals" && typeof r.value === "boolean" && typeof r.key === "string" && r.key.trim() !== "";
+
+/**
+ * Properties to put into a new note: for each checkbox rule marked addToNewNotes, the key with the
+ * value that does NOT trigger the rule, so ticking the checkbox applies it. First rule per key wins.
+ */
+export const newNoteProperties = (config: RulesConfig): Record<string, boolean> => {
+  const res: Record<string, boolean> = {};
+  for (const r of config.rules) {
+    if (r.addToNewNotes === true && isCheckboxRule(r) && !(r.key.trim() in res)) {
+      res[r.key.trim()] = !r.value;
+    }
+  }
+  return res;
 };
 
 export const RULES_FILE_PATH = ".obsi/ai-rules.json";

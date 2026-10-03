@@ -1,13 +1,15 @@
 import { Notice, Plugin, TFile } from "obsidian";
 import { ChangesApplier } from "./ai/applier";
+import { registerNewNoteProps } from "./ai/newNoteProps";
 import { AiPublisher } from "./ai/publisher";
 import { RULES_FILE_PATH } from "./ai/rules";
 import { RulesStore } from "./ai/rulesStore";
 import { ObsiApi } from "./api/client";
 import { obsidianHttp } from "./api/httpObsidian";
 import type { MeInfo, VaultInfo } from "./api/types";
-import { DEFAULT_SETTINGS, type ObsiSettings, normalizeSettings } from "./settings";
+import { DEFAULT_SETTINGS, type ObsiSettings, isConfigured, normalizeSettings } from "./settings";
 import { SyncManager } from "./syncManager";
+import { SetupModal } from "./ui/setupModal";
 import { ObsiSettingTab } from "./ui/settingsTab";
 
 export default class ObsiSyncPlugin extends Plugin {
@@ -47,16 +49,20 @@ export default class ObsiSyncPlugin extends Plugin {
     });
 
     this.statusEl = this.addStatusBarItem();
-    this.setStatus("Obsi: idle");
+    this.statusEl.addClass("mod-clickable");
+    this.statusEl.onClickEvent(() => {
+      if (!isConfigured(this.settings)) this.openSetup();
+    });
+    this.updateStatus();
 
-    this.addRibbonIcon("refresh-cw", "Obsi Sync: sync now", () => {
-      void this.syncManager.syncAll("manual");
-    });
-    this.addCommand({
-      id: "sync-now",
-      name: "Sync now",
-      callback: () => void this.syncManager.syncAll("manual"),
-    });
+    // until the plugin is set up, every entry point leads to the setup window instead of an error
+    const syncNow = () => {
+      if (isConfigured(this.settings)) void this.syncManager.syncAll("manual");
+      else this.openSetup();
+    };
+    this.addRibbonIcon("refresh-cw", "Obsi Sync: sync now", syncNow);
+    this.addCommand({ id: "sync-now", name: "Sync now", callback: syncNow });
+    this.addCommand({ id: "set-up", name: "Set up", callback: () => this.openSetup() });
     this.addCommand({
       id: "publish-ai",
       name: "Publish AI Available now",
@@ -95,6 +101,12 @@ export default class ObsiSyncPlugin extends Plugin {
         })
       );
       this.rules.onChange(poke);
+      registerNewNoteProps(this.app, this.rules, (ref) => this.registerEvent(ref));
+
+      if (!this.settings.onboardingDone && !isConfigured(this.settings)) {
+        this.openSetup();
+        return;
+      }
 
       void this.refreshMe();
       if (this.settings.syncEnabled && this.settings.syncOnStartup) {
@@ -145,6 +157,15 @@ export default class ObsiSyncPlugin extends Plugin {
     } catch (e) {
       console.warn("obsi-sync: post-sync tasks failed", e);
     }
+  }
+
+  openSetup() {
+    new SetupModal(this.app, this).open();
+  }
+
+  /** idle status line; "set up" while there is nothing to sync */
+  updateStatus() {
+    this.setStatus(isConfigured(this.settings) ? "Obsi: idle" : "Obsi: set up");
   }
 
   setStatus(text: string) {
