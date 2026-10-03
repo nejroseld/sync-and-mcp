@@ -1,0 +1,9 @@
+{
+  "id": "obsi-sync",
+  "name": "Obsi Sync",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "End-to-end encrypted multi-vault sync with an obsi-mcp server, plus AI Available publishing for MCP clients.",
+  "author": "obsi-mcp",
+  "isDesktopOnly": false
+}

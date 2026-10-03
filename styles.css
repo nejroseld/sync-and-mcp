@@ -1,0 +1,18 @@
+.obsi-sync-settings .obsi-sync-mount {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 4px 12px;
+  margin: 8px 0;
+}
+.obsi-sync-settings .obsi-sync-error {
+  color: var(--text-error);
+}
+.obsi-sync-settings .obsi-sync-info {
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+.obsi-sync-settings .obsi-sync-newtoken code {
+  word-break: break-all;
+  user-select: all;
+}

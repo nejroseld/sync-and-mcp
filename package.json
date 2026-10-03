@@ -1,0 +1,38 @@
+{
+  "name": "obsi-sync",
+  "version": "0.1.0",
+  "description": "Obsi Sync: E2EE multi-vault sync (fork of Remotely Save engine) and AI Available publishing for obsi-mcp server.",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs --watch",
+    "test": "mocha --import=tsx 'tests/**/*.test.ts'",
+    "e2e": "tsx tests-e2e/e2e.ts"
+  },
+  "license": "SEE NOTICE",
+  "devDependencies": {
+    "@types/chai": "^4.3.16",
+    "@types/lodash": "^4.17.7",
+    "@types/mocha": "^10.0.7",
+    "@types/node": "^20.14.12",
+    "chai": "^4.4.1",
+    "esbuild": "^0.23.0",
+    "mocha": "^10.7.0",
+    "obsidian": "^1.5.7",
+    "tslib": "^2.6.3",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@fyears/rclone-crypt": "^0.0.7",
+    "buffer": "^6.0.3",
+    "localforage": "^1.10.0",
+    "lodash": "^4.17.21",
+    "p-queue": "^8.0.1",
+    "path-browserify": "^1.0.1",
+    "process": "^0.11.10",
+    "rfc4648": "^1.5.3",
+    "xregexp": "^5.1.1"
+  }
+}
