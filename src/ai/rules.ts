@@ -352,6 +352,15 @@ export const STARTER_RULES: RulesConfig = {
   ],
 };
 
+/** Starter rules, opposite preset: everything is shared except notes with `private` ticked. */
+export const STARTER_RULES_ALLOW: RulesConfig = {
+  version: 1,
+  mode: "allow_by_default",
+  rules: [
+    { id: "r1", type: "property", effect: "exclude", key: "private", op: "equals", value: true, addToNewNotes: true },
+  ],
+};
+
 /** A property rule that can be shown as a checkbox: `key equals true|false`. */
 export const isCheckboxRule = (r: RuleBase): r is PropertyRule =>
   r.type === "property" && r.op === "equals" && typeof r.value === "boolean" && typeof r.key === "string" && r.key.trim() !== "";

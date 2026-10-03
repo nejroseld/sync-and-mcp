@@ -40,8 +40,11 @@ npm run build        # tsc --noEmit + esbuild, на выходе main.js
 * «Not now» — окно закрывается и больше само не появляется. Вернуться: команда «Obsi Sync: Set up»
   или кнопка «Set up» в настройках.
 * «Connect a server» — URL сервера и токен устройства → «Check connection» → выбрать vault сервера →
-  пароль шифрования → «Save and sync». Весь Obsidian-vault становится корневым mount'ом этого vault'а.
-  AI Available остаётся выключенным, пока его не включить в настройках.
+  пароль шифрования → «AI access» → «Save and sync». Весь Obsidian-vault становится корневым
+  mount'ом этого vault'а.
+* «AI access» в том же окне: «Off» (по умолчанию), «Only notes with “ai” ticked» или «All notes except
+  “private” ticked». Включает AI Available и после первой синхронизации создаёт стартовые правила
+  (см. ниже), если их ещё нет — правила, пришедшие с другого устройства, не перезаписываются.
 
 Остальное (несколько mount'ов, AI, admin) — по желанию, в «Settings -> Obsi Sync».
 

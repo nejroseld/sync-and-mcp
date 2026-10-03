@@ -1,6 +1,7 @@
 import { type App, Modal, Notice, Setting } from "obsidian";
 import { ObsiApi } from "../api/client";
 import { obsidianHttp } from "../api/httpObsidian";
+import { STARTER_RULES, STARTER_RULES_ALLOW } from "../ai/rules";
 import type { VaultInfo } from "../api/types";
 import type ObsiSyncPlugin from "../main";
 
@@ -14,6 +15,7 @@ export class SetupModal extends Modal {
   private vaults: VaultInfo[] = [];
   private vaultId = "";
   private password = "";
+  private ai: "off" | "ticked" | "all_but_private" = "off";
 
   constructor(
     app: App,
@@ -118,6 +120,20 @@ export class SetupModal extends Modal {
         t.inputEl.type = "password";
         t.onChange((v) => (this.password = v));
       });
+    new Setting(el)
+      .setName("AI access (optional)")
+      .setDesc(
+        "Lets AI clients (MCP) read the notes you allow. Those notes are stored on the server unencrypted; the rest stays end-to-end encrypted. " +
+          "New notes get a checkbox property to decide per note. Rules already synced from another device are kept."
+      )
+      .addDropdown((d) =>
+        d
+          .addOption("off", "Off")
+          .addOption("ticked", "Only notes with “ai” ticked")
+          .addOption("all_but_private", "All notes except “private” ticked")
+          .setValue(this.ai)
+          .onChange((v) => (this.ai = v as typeof this.ai))
+      );
     new Setting(el).addButton((b) =>
       b
         .setButtonText("Save and sync")
@@ -129,10 +145,30 @@ export class SetupModal extends Modal {
           }
           await this.save();
           this.close();
-          new Notice("Obsi Sync: connected. AI access stays off until you enable it in settings.");
-          void this.plugin.syncManager.syncAll("manual");
+          new Notice(
+            this.ai === "off"
+              ? "Obsi Sync: connected. AI access is off (can be enabled in settings)."
+              : "Obsi Sync: connected, AI access on."
+          );
+          void this.firstSync();
         })
     );
+  }
+
+  /** Rules are created only after the first sync, so rules from another device win. */
+  private async firstSync() {
+    const synced = await this.plugin.syncManager.syncAll("manual");
+    if (this.ai === "off") return;
+    if (!synced) {
+      new Notice("Obsi Sync: first sync failed, AI access not enabled yet. Enable it in settings once sync works.");
+      return;
+    }
+    if ((await this.plugin.rules.load(true)) === null) {
+      await this.plugin.rules.save(structuredClone(this.ai === "ticked" ? STARTER_RULES : STARTER_RULES_ALLOW));
+    }
+    this.plugin.settings.aiEnabled = true;
+    await this.plugin.saveSettings();
+    this.plugin.publisher.schedule();
   }
 
   private async save() {

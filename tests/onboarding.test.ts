@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import {
   STARTER_RULES,
+  STARTER_RULES_ALLOW,
   computeAllowedPaths,
   isCheckboxRule,
   newNoteProperties,
@@ -84,5 +85,18 @@ describe("properties for new notes", () => {
       resolvedLinks: {},
     });
     expect([...allowed]).to.deep.equal(["ticked.md"]);
+  });
+});
+
+describe("allow-by-default starter preset", () => {
+  it("shares everything except ticked private; new notes get private unticked", () => {
+    const fm: Record<string, Record<string, unknown>> = {
+      "new.md": { ...newNoteProperties(STARTER_RULES_ALLOW) },
+      "secret.md": { private: true },
+      "old.md": {},
+    };
+    expect(newNoteProperties(STARTER_RULES_ALLOW)).to.deep.equal({ private: false });
+    const allowed = computeAllowedPaths(STARTER_RULES_ALLOW, { files: Object.keys(fm), frontmatter: (p) => fm[p], resolvedLinks: {} });
+    expect([...allowed].sort()).to.deep.equal(["new.md", "old.md"]);
   });
 });
