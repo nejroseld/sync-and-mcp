@@ -361,6 +361,23 @@ export const STARTER_RULES_ALLOW: RulesConfig = {
   ],
 };
 
+export type RulesPreset = "ticked" | "all_but_private" | "custom";
+
+/** Which starter preset a rules file still matches (ids and the new-note flag aside), or "custom". */
+export const rulesPreset = (config: RulesConfig): RulesPreset => {
+  const same = (preset: RulesConfig) => {
+    if (config.mode !== preset.mode || config.rules.length !== preset.rules.length) return false;
+    return config.rules.every((r, i) => {
+      const p = preset.rules[i] as PropertyRule;
+      const x = r as PropertyRule;
+      return x.type === p.type && x.effect === p.effect && x.key === p.key && x.op === p.op && x.value === p.value;
+    });
+  };
+  if (same(STARTER_RULES)) return "ticked";
+  if (same(STARTER_RULES_ALLOW)) return "all_but_private";
+  return "custom";
+};
+
 /** A property rule that can be shown as a checkbox: `key equals true|false`. */
 export const isCheckboxRule = (r: RuleBase): r is PropertyRule =>
   r.type === "property" && r.op === "equals" && typeof r.value === "boolean" && typeof r.key === "string" && r.key.trim() !== "";

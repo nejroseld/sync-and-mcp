@@ -13,6 +13,7 @@ import { SyncManager } from "./syncManager";
 import { findOwningMount } from "./sync/mounts";
 import { SetupModal } from "./ui/setupModal";
 import { ObsiSettingTab } from "./ui/settingsTab";
+import { StatusBar } from "./ui/statusBar";
 
 export default class ObsiSyncPlugin extends Plugin {
   settings: ObsiSettings = { ...DEFAULT_SETTINGS };
@@ -22,9 +23,10 @@ export default class ObsiSyncPlugin extends Plugin {
   syncManager!: SyncManager;
   me: MeInfo | undefined;
   vaults: VaultInfo[] = [];
-  private statusEl: HTMLElement | undefined;
+  private statusBar: StatusBar | undefined;
   private intervalIds: number[] = [];
   private saveSyncTimer: number | undefined;
+  private settingTab: ObsiSettingTab | undefined;
 
   async onload() {
     await this.loadSettings();
@@ -51,12 +53,10 @@ export default class ObsiSyncPlugin extends Plugin {
       onSyncFinished: () => void this.afterSync(),
     });
 
-    this.statusEl = this.addStatusBarItem();
-    this.statusEl.addClass("mod-clickable");
-    this.statusEl.onClickEvent(() => {
-      if (!isConfigured(this.settings)) this.openSetup();
-    });
+    this.statusBar = new StatusBar(this.addStatusBarItem(), this);
     this.updateStatus();
+    // keeps "Synced 3 min ago" current
+    this.registerInterval(window.setInterval(() => this.updateStatus(), 30_000));
 
     // until the plugin is set up, every entry point leads to the setup window instead of an error
     const syncNow = () => {
@@ -66,6 +66,17 @@ export default class ObsiSyncPlugin extends Plugin {
     this.addRibbonIcon("refresh-cw", t("Obsi Sync: sync now"), syncNow);
     this.addCommand({ id: "sync-now", name: t("Sync now"), callback: syncNow });
     this.addCommand({ id: "set-up", name: t("Set up"), callback: () => this.openSetup() });
+    this.addCommand({ id: "open-settings", name: t("Open settings"), callback: () => this.openSettings() });
+    this.addCommand({
+      id: "toggle-sync",
+      name: t("Pause or resume sync"),
+      checkCallback: (checking) => {
+        if (!isConfigured(this.settings)) return false;
+        if (!checking) void this.setSyncEnabled(!this.settings.syncEnabled);
+        return true;
+      },
+    });
+    this.addCommand({ id: "add-device", name: t("Add another device"), callback: () => this.openSettings("devices") });
     this.addCommand({
       id: "publish-ai",
       name: t("Publish AI Available now"),
@@ -89,7 +100,8 @@ export default class ObsiSyncPlugin extends Plugin {
       },
     });
 
-    this.addSettingTab(new ObsiSettingTab(this.app, this));
+    this.settingTab = new ObsiSettingTab(this.app, this);
+    this.addSettingTab(this.settingTab);
 
     // AI publish triggers (debounced inside the publisher)
     const poke = () => this.publisher.schedule();
@@ -185,21 +197,35 @@ export default class ObsiSyncPlugin extends Plugin {
     }
   }
 
-  openSetup() {
-    new SetupModal(this.app, this).open();
+  /** the welcome window; "import" starts on "copy setup from another device" */
+  openSetup(start?: "import") {
+    new SetupModal(this.app, this, start).open();
   }
 
-  /** idle status line; "set up" while there is nothing to sync */
+  /** opens this plugin's settings, optionally on a given section (e.g. "mounts") */
+  openSettings(section?: string) {
+    if (section) this.settingTab?.selectSection(section);
+    const setting = (this.app as any).setting;
+    setting?.open();
+    setting?.openTabById(this.manifest.id);
+  }
+
+  /** redraws the status bar from the current state */
   updateStatus() {
-    this.setStatus(t(isConfigured(this.settings) ? "Obsi: idle" : "Obsi: set up"));
+    this.statusBar?.update();
   }
 
+  /** live progress text from the sync engine */
   setStatus(text: string) {
-    if (!this.settings.statusBar) {
-      this.statusEl?.setText("");
-      return;
-    }
-    this.statusEl?.setText(text);
+    this.statusBar?.update(text);
+  }
+
+  async setSyncEnabled(enabled: boolean) {
+    this.settings.syncEnabled = enabled;
+    await this.saveSettings();
+    this.updateStatus();
+    new Notice(enabled ? t("Obsi Sync: sync resumed") : t("Obsi Sync: sync paused"));
+    if (enabled) void this.syncManager.syncAll("auto");
   }
 
   getApi(): ObsiApi | undefined {

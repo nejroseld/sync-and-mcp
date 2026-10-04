@@ -3,13 +3,20 @@ import {
   STARTER_RULES,
   STARTER_RULES_ALLOW,
   computeAllowedPaths,
+  rulesPreset,
   isCheckboxRule,
   newNoteProperties,
   parseRulesJson,
   serializeRules,
   type RulesConfig,
 } from "../src/ai/rules";
+import { ApiError } from "../src/api/client";
+import { checkVaultPassword, connectProblem, normalizeServerUrl } from "../src/onboarding";
 import { DEFAULT_SETTINGS, isConfigured, normalizeSettings, validateMounts } from "../src/settings";
+import { syncer } from "../src/sync/sync";
+import { FakeFsEncrypt } from "../src/sync/fsEncrypt";
+import { MemoryPrevSyncStore } from "../src/sync/syncDb";
+import { MemFs } from "./helpers/memFs";
 
 describe("setup state", () => {
   it("fresh install is not configured and shows the welcome window", () => {
@@ -108,5 +115,46 @@ describe("allow-by-default starter preset", () => {
     expect(newNoteProperties(STARTER_RULES_ALLOW)).to.deep.equal({ private: false });
     const allowed = computeAllowedPaths(STARTER_RULES_ALLOW, { files: Object.keys(fm), frontmatter: (p) => fm[p], resolvedLinks: {} });
     expect([...allowed].sort()).to.deep.equal(["new.md", "old.md"]);
+  });
+});
+
+describe("welcome window helpers", () => {
+  it("normalizes a typed server address", () => {
+    expect(normalizeServerUrl("  ")).to.equal("");
+    expect(normalizeServerUrl("obsi.example.com/")).to.equal("https://obsi.example.com");
+    expect(normalizeServerUrl("localhost:8766")).to.equal("http://localhost:8766");
+    expect(normalizeServerUrl("192.168.1.5:8766//")).to.equal("http://192.168.1.5:8766");
+    expect(normalizeServerUrl("http://obsi.lan:8766/api/v1/")).to.equal("http://obsi.lan:8766");
+    expect(normalizeServerUrl("HTTPS://Obsi.example.com")).to.equal("HTTPS://Obsi.example.com");
+  });
+
+  it("explains why a connection failed", () => {
+    expect(connectProblem(new ApiError(401, "unauthorized", "bad token"))).to.equal("bad_token");
+    expect(connectProblem(new ApiError(403, "forbidden", "no"))).to.equal("bad_token");
+    expect(connectProblem(new ApiError(404, "not_found", "no"))).to.equal("bad_url");
+    expect(connectProblem(new ApiError(500, "boom", "x"))).to.equal("server_error");
+    expect(connectProblem(new Error("net::ERR_CONNECTION_REFUSED"))).to.equal("unreachable");
+    expect(connectProblem(new TypeError("Failed to parse URL from x"))).to.equal("bad_url");
+  });
+
+  it("checks the encryption password against the server vault", async () => {
+    const remote = new MemFs("remote");
+    expect(await checkVaultPassword(remote, "secret")).to.equal("empty_vault");
+    const local = new MemFs("local", { "a.md": "hello" });
+    const res = await syncer(local, remote, new FakeFsEncrypt(remote, "secret", "rclone-base64"), new MemoryPrevSyncStore(), "manual", "v", ".obsidian", { protectModifyPercentage: -1 });
+    expect(res.ok).to.equal(true);
+    expect(await checkVaultPassword(remote, "secret")).to.equal("match");
+    expect(await checkVaultPassword(remote, "wrong")).to.equal("mismatch");
+  });
+});
+
+describe("rules presets", () => {
+  it("recognizes the starter presets and treats anything else as custom", () => {
+    expect(rulesPreset(STARTER_RULES)).to.equal("ticked");
+    expect(rulesPreset(STARTER_RULES_ALLOW)).to.equal("all_but_private");
+    const renamed = { ...STARTER_RULES, rules: [{ ...STARTER_RULES.rules[0], id: "x", addToNewNotes: false }] };
+    expect(rulesPreset(renamed)).to.equal("ticked");
+    expect(rulesPreset({ ...STARTER_RULES, mode: "allow_by_default" })).to.equal("custom");
+    expect(rulesPreset({ ...STARTER_RULES, rules: [...STARTER_RULES.rules, { id: "f", type: "folder", effect: "include", path: "P" }] })).to.equal("custom");
   });
 });

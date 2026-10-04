@@ -1,14 +1,480 @@
-.obsi-sync-settings .obsi-sync-mount {
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  padding: 4px 12px;
+/* =========================================================================
+   Obsi Sync. Built on Obsidian theme variables, so it follows any theme,
+   light or dark. Prefixes: obsi-ui-* shared kit, obsi-sync-* screens.
+   ========================================================================= */
+
+/* ---------- shared kit ---------- */
+.obsi-ui-icon,
+.obsi-ui-callout-icon,
+.obsi-ui-card-icon,
+.obsi-ui-choice-icon,
+.obsi-ui-list-icon {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.obsi-ui-lead {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.obsi-ui-muted {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.obsi-ui-spacer {
+  flex: 1 1 auto;
+}
+
+.obsi-ui-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 12px;
+  margin: 24px 0 8px;
+}
+.obsi-ui-section > .obsi-ui-section-title {
+  flex: 1 1 auto;
+}
+.obsi-ui-section-title {
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+.obsi-ui-section-desc {
+  flex: 1 1 100%;
+  order: 3;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.45;
+}
+
+.obsi-ui-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m, 8px);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
-.obsi-sync-settings .obsi-sync-error {
-  color: var(--text-error);
+.obsi-ui-callout-body {
+  flex: 1 1 auto;
+  min-width: 0;
 }
-.obsi-sync-warning {
-  color: var(--text-warning);
+.obsi-ui-callout.is-info .obsi-ui-callout-icon { color: var(--interactive-accent); }
+.obsi-ui-callout.is-warning .obsi-ui-callout-icon { color: var(--text-warning); }
+.obsi-ui-callout.is-error { color: var(--text-error); background: rgba(var(--color-red-rgb), 0.08); }
+.obsi-ui-callout.is-success .obsi-ui-callout-icon { color: var(--color-green); }
+
+.obsi-ui-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-medium, 500);
+  line-height: 1.6;
+  white-space: nowrap;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+.obsi-ui-pill.is-success { background: rgba(var(--color-green-rgb), 0.15); color: var(--color-green); }
+.obsi-ui-pill.is-warning { background: rgba(var(--color-orange-rgb), 0.15); color: var(--color-orange); }
+.obsi-ui-pill.is-error { background: rgba(var(--color-red-rgb), 0.15); color: var(--color-red); }
+.obsi-ui-pill.is-info { background: rgba(var(--interactive-accent-rgb, 124, 58, 237), 0.15); color: var(--text-accent); }
+.obsi-ui-choice-title .obsi-ui-pill,
+.setting-item-name .obsi-ui-pill { margin-left: 6px; vertical-align: 1px; }
+
+/* choice cards (radio-like options) */
+.obsi-ui-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+button.obsi-ui-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 8px);
+  background: var(--background-primary);
+  box-shadow: none;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+button.obsi-ui-choice:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+button.obsi-ui-choice.is-selected {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+.obsi-ui-choice-icon { color: var(--interactive-accent); }
+.obsi-ui-choice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.obsi-ui-choice-title {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+.obsi-ui-choice-desc {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.obsi-ui-choice-chevron { display: flex; color: var(--text-faint); }
+.obsi-ui-choice-check {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--background-modifier-border-hover, var(--text-faint));
+  border-radius: 50%;
+}
+.is-selected .obsi-ui-choice-check {
+  border-color: var(--interactive-accent);
+  background: radial-gradient(var(--interactive-accent) 45%, transparent 50%);
+}
+
+/* cards */
+.obsi-ui-card {
+  margin: 8px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l, 10px);
+  background: var(--background-primary);
+}
+.obsi-ui-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 14px;
+}
+.obsi-ui-card-icon {
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-m, 8px);
+  background: var(--background-secondary);
+  color: var(--interactive-accent);
+}
+.obsi-ui-card-heading {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.obsi-ui-card-title {
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+.obsi-ui-card-subtitle {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+}
+.obsi-ui-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.obsi-ui-card-body:not(:empty) {
+  padding: 0 14px 12px;
+}
+.obsi-ui-card-head + .obsi-ui-card-body:not(:empty) {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 8px;
+}
+
+/* lists of rows (overview, server) */
+.obsi-ui-list {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l, 10px);
+  overflow: hidden;
+}
+.obsi-sync-settings .obsi-ui-list > .setting-item {
+  margin: 0;
+  padding: 10px 14px;
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.obsi-sync-settings .obsi-ui-list > :first-child { border-top: none; }
+.obsi-ui-list > .setting-item.is-revoked { opacity: 0.55; }
+.obsi-ui-list > p { margin: 0; padding: 12px 14px; }
+button.obsi-ui-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  padding: 12px 14px;
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+button.obsi-ui-list-row:first-child { border-top: none; }
+button.obsi-ui-list-row:hover { background: var(--background-modifier-hover); }
+.obsi-ui-list-icon { color: var(--interactive-accent); }
+.obsi-ui-list-text { flex: 1 1 auto; min-width: 0; }
+.obsi-ui-list-title { font-weight: var(--font-semibold); color: var(--text-normal); overflow-wrap: anywhere; }
+.obsi-ui-list-desc { font-size: var(--font-ui-small); color: var(--text-muted); overflow-wrap: anywhere; }
+.obsi-ui-list-chevron { display: flex; color: var(--text-faint); }
+
+/* hero (settings overview) */
+.obsi-ui-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 8px;
+  padding: 18px;
+  border-radius: var(--radius-l, 12px);
+  background: var(--background-secondary);
+}
+.obsi-ui-hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--background-primary);
+  color: var(--interactive-accent);
+}
+.obsi-ui-hero-icon svg { width: 24px; height: 24px; }
+.obsi-ui-hero[data-state="synced"] .obsi-ui-hero-icon { color: var(--color-green); }
+.obsi-ui-hero[data-state="error"] .obsi-ui-hero-icon { color: var(--text-error); }
+.obsi-ui-hero[data-state="paused"] .obsi-ui-hero-icon { color: var(--text-muted); }
+.obsi-ui-hero-text { flex: 1 1 220px; min-width: 0; }
+.obsi-ui-hero-title { font-size: var(--font-ui-large, 1.15em); font-weight: var(--font-semibold); }
+.obsi-ui-hero-desc { color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.45; margin-top: 2px; }
+.obsi-ui-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.obsi-ui-hero .obsi-ui-meter { margin-top: 10px; }
+
+.is-spinning svg { animation: obsi-sync-spin 1.2s linear infinite; }
+@keyframes obsi-sync-spin { to { transform: rotate(360deg); } }
+
+/* progress meter: indeterminate by default, .is-determinate follows width */
+.obsi-ui-meter,
+.obsi-sync-setup-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+.obsi-ui-meter > div,
+.obsi-sync-setup-meter > div {
+  height: 100%;
+  width: 30%;
+  border-radius: 3px;
+  background: var(--interactive-accent);
+  animation: obsi-sync-indeterminate 1.4s ease-in-out infinite;
+}
+.obsi-ui-meter.is-determinate > div,
+.obsi-sync-setup-meter.is-determinate > div {
+  animation: none;
+  transition: width 0.3s;
+}
+@keyframes obsi-sync-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+
+/* forms. Obsidian 1.11+ draws setting items as filled, rounded blocks with their own
+   padding; inside our cards, forms and dialogs they must be plain rows instead */
+.obsi-sync-settings .obsi-ui-card .setting-item,
+.obsi-sync-settings .obsi-ui-form .setting-item,
+.obsi-sync-settings .obsi-ui-rules .setting-item,
+.obsi-ui-dialog .setting-item,
+.obsi-sync-setup .setting-item {
+  margin: 0;
+  padding: 8px 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+/* a card body with nothing visible in it is not drawn at all */
+.obsi-ui-card-body:not(:has(> :not(:empty))) {
+  display: none;
+}
+.obsi-ui-field .setting-item-control input[type="text"],
+.obsi-ui-field .setting-item-control input[type="password"] {
+  width: 100%;
+  min-width: 180px;
+}
+.obsi-ui-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+.obsi-ui-button-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.obsi-ui-button-icon .obsi-ui-icon svg { width: 16px; height: 16px; }
+button.obsi-ui-link {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--text-accent);
+  font-size: inherit;
+  cursor: pointer;
+}
+button.obsi-ui-link:hover { text-decoration: underline; background: none; }
+a.obsi-ui-link-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--button-radius, var(--radius-s, 4px));
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  text-decoration: none;
+  box-shadow: var(--input-shadow);
+}
+a.obsi-ui-link-button:hover { background: var(--interactive-hover); }
+
+/* collapsible "Advanced" */
+.obsi-ui-details {
+  margin: 24px 0 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.obsi-ui-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 4px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-small);
+}
+.obsi-ui-details > summary::-webkit-details-marker { display: none; }
+.obsi-ui-details > summary:hover { color: var(--text-normal); }
+.obsi-ui-details-chevron { display: flex; transition: transform 0.15s; }
+.obsi-ui-details[open] .obsi-ui-details-chevron { transform: rotate(90deg); }
+.obsi-ui-details-body { padding-top: 4px; }
+.obsi-ui-card .obsi-ui-details { margin: 8px 0 0; }
+
+/* dialogs */
+.obsi-ui-dialog { width: min(480px, calc(100vw - 32px)); }
+.obsi-ui-dialog-text { margin-top: 0; color: var(--text-muted); line-height: 1.5; }
+.obsi-ui-dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- settings page ---------- */
+.obsi-sync-settings .obsi-sync-nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  margin: 0 0 20px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.obsi-sync-nav::-webkit-scrollbar { display: none; }
+button.obsi-sync-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: auto;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-m, 8px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+button.obsi-sync-nav-item:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+button.obsi-sync-nav-item[aria-selected="true"] {
+  background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+button.obsi-sync-nav-item:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 1px; }
+.obsi-sync-nav-icon { display: flex; }
+.obsi-sync-nav-icon svg { width: 16px; height: 16px; }
+@media (max-width: 600px) {
+  button.obsi-sync-nav-item > span:not(.obsi-sync-nav-icon) { display: none; }
+  button.obsi-sync-nav-item[aria-selected="true"] > span { display: inline; }
+}
+.obsi-sync-page { max-width: 760px; }
+.obsi-ui-setting-main .setting-item-name { font-weight: var(--font-semibold); }
+
+.obsi-ui-about {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 28px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+.obsi-ui-about button.obsi-ui-link { color: var(--text-faint); }
+
+/* devices */
+.obsi-ui-steps {
+  margin: 0 0 16px;
+  padding-left: 22px;
+  line-height: 1.6;
+}
+.obsi-ui-steps li::marker { color: var(--interactive-accent); font-weight: var(--font-semibold); }
+.obsi-ui-qr { display: flex; justify-content: center; }
+.obsi-sync-device-adder-qr {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  margin: 12px 0;
+  border-radius: var(--radius-m, 8px);
+  background: white;
 }
 .obsi-sync-device-adder-text {
   box-sizing: border-box;
@@ -20,74 +486,196 @@
   font-family: var(--font-monospace);
   font-size: var(--font-smaller);
 }
-.obsi-sync-device-adder-actions {
+
+/* AI rules */
+.obsi-ui-rules {
+  padding: 4px 14px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l, 10px);
+}
+.obsi-ui-rule {
+  padding: 10px 0;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.obsi-ui-rule-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.obsi-ui-rule-line > span { color: var(--text-muted); }
+.obsi-ui-rule-line input[type="text"] { flex: 1 1 120px; min-width: 100px; }
+.obsi-ui-rule-delete { margin-left: auto; }
+.obsi-ui-rule-option {
   display: flex;
   align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.obsi-ui-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: none;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin: 8px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--interactive-accent);
+  border-radius: var(--radius-l, 10px);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
 }
-.obsi-sync-device-adder-actions a {
-  padding: 6px 10px;
+.obsi-ui-savebar.is-dirty { display: flex; }
+.obsi-ui-savebar-text { font-weight: var(--font-semibold); }
+
+/* server: token modal */
+.obsi-ui-grants { margin: 16px 0 4px; }
+.obsi-ui-grant-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--background-modifier-border);
 }
-.obsi-sync-device-adder-qr {
+.obsi-ui-grant-vault { flex: 1 1 140px; font-weight: var(--font-semibold); }
+.obsi-ui-grant-row label { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-ui-small); }
+.obsi-ui-token {
   display: block;
-  width: min(100%, 420px);
-  height: auto;
-  margin: 12px 0;
-  background: white;
-}
-.obsi-sync-settings .obsi-sync-info {
-  color: var(--text-muted);
-  margin-bottom: 8px;
-  word-break: break-word;
-}
-.obsi-sync-settings .obsi-sync-newtoken code {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: var(--radius-m, 8px);
+  background: var(--background-secondary);
   word-break: break-all;
   user-select: all;
 }
-.obsi-sync-settings-tabs {
-  display: flex;
+.obsi-sync-token-modal .obsi-ui-choices { margin-top: 8px; }
+
+/* ---------- status bar ---------- */
+.obsi-sync-statusbar {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  margin: 0 0 16px;
-  padding: 0 0 6px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  overflow-x: auto;
 }
-.obsi-sync-settings-tab {
-  flex: 0 0 auto;
-  padding: 6px 10px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 4px 4px 0 0;
-  background: transparent;
+.obsi-sync-statusbar-icon { display: flex; }
+.obsi-sync-statusbar-icon svg { width: 13px; height: 13px; }
+.obsi-sync-statusbar[data-state="syncing"] .obsi-sync-statusbar-icon svg { animation: obsi-sync-spin 1.2s linear infinite; }
+.obsi-sync-statusbar[data-state="error"] { color: var(--text-error); }
+.obsi-sync-statusbar[data-state="setup"] { color: var(--text-accent); }
+.obsi-sync-statusbar[data-state="paused"] { color: var(--text-faint); }
+
+/* ---------- welcome window ---------- */
+.obsi-sync-setup { width: min(560px, calc(100vw - 32px)); }
+.obsi-sync-setup .modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.obsi-sync-setup .obsi-ui-callout { margin: 0; }
+.obsi-sync-setup .obsi-ui-callout + .obsi-ui-callout { margin-top: 8px; }
+.obsi-sync-setup-title { margin: 0; font-size: var(--font-ui-larger, 1.4em); }
+.obsi-sync-setup-lead { margin: 0; color: var(--text-muted); line-height: 1.5; }
+.obsi-sync-setup-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+  text-align: center;
+}
+.obsi-sync-setup-hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--background-modifier-hover);
+  color: var(--interactive-accent);
+}
+.obsi-sync-setup-hero-icon svg { width: 28px; height: 28px; }
+.obsi-sync-setup-hero-icon.is-success { color: var(--color-green); }
+.obsi-sync-setup-hero-icon.is-error { color: var(--text-error); }
+.obsi-sync-setup-features { display: flex; flex-direction: column; gap: 10px; }
+.obsi-sync-setup-feature { display: flex; align-items: flex-start; gap: 12px; }
+.obsi-sync-setup-feature-icon { flex: 0 0 auto; display: flex; color: var(--interactive-accent); padding-top: 2px; }
+.obsi-sync-setup-feature-title { font-weight: var(--font-semibold); }
+.obsi-sync-setup-feature-desc { color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.45; }
+.obsi-sync-setup-section {
+  margin-top: 4px;
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.obsi-sync-setup-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+.obsi-sync-setup-progress-bar { flex: 1 1 auto; display: flex; gap: 4px; }
+.obsi-sync-setup-progress-bar > div {
+  flex: 1 1 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+}
+.obsi-sync-setup-progress-bar > div.is-done { background: var(--interactive-accent); }
+.obsi-sync-setup-note { margin: 0; font-size: var(--font-ui-small); color: var(--text-muted); }
+.obsi-sync-setup-later {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--font-ui-small);
   color: var(--text-muted);
+  text-align: center;
+}
+button.obsi-sync-setup-link {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--text-accent);
+  font-size: inherit;
   cursor: pointer;
 }
-.obsi-sync-settings-tab[aria-selected="true"] {
-  border-bottom-color: var(--interactive-accent);
-  color: var(--text-normal);
+button.obsi-sync-setup-link:hover { text-decoration: underline; background: none; }
+.obsi-sync-setup-scan { display: flex; flex-wrap: wrap; gap: 8px; }
+button.obsi-sync-setup-scan-button {
+  flex: 1 1 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: auto;
+  padding: 12px;
 }
-.obsi-sync-settings-tab:focus-visible {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: 2px;
-}
-.obsi-sync-settings-panel[hidden] {
-  display: none;
-}
-.obsi-sync-rules .obsi-sync-rule-row {
-  align-items: flex-start;
-}
-.obsi-sync-rules .obsi-sync-rule-row .setting-item-control {
-  min-width: 0;
-  max-width: 100%;
+.obsi-sync-setup-footer {
+  display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
 }
-.obsi-sync-rules .obsi-sync-rule-row .setting-item-control > * {
-  min-width: 0;
-}
-.obsi-sync-rules .obsi-sync-rule-row input {
-  max-width: 100%;
+.obsi-sync-setup-spacer { flex: 1 1 auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .is-spinning svg,
+  .obsi-sync-statusbar[data-state="syncing"] .obsi-sync-statusbar-icon svg,
+  .obsi-ui-meter > div,
+  .obsi-sync-setup-meter > div {
+    animation: none;
+  }
 }

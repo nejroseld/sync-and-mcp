@@ -47,6 +47,11 @@ export class RulesStore {
     this.emit();
   }
 
+  /** last loaded state without touching the disk: undefined = not loaded yet, null = no file */
+  peek(): ParsedRules | null | undefined {
+    return this.cached;
+  }
+
   /** call when the file may have changed on disk (sync, manual edit) */
   async reload() {
     const before = JSON.stringify(this.cached);

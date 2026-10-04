@@ -147,7 +147,7 @@ export class ObsiApi {
       "/admin/settings"
     );
   }
-  putAdminSettings(s: { embedding: EmbeddingSettings }) {
+  putAdminSettings(s: { embedding: Partial<EmbeddingSettings> }) {
     return this.json<unknown>("PUT", "/admin/settings", s);
   }
   reindex(vid: string) {

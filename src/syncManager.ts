@@ -19,6 +19,12 @@ export interface MountStatus {
   progress?: string;
 }
 
+export interface SyncProgress {
+  done: number;
+  total: number;
+}
+export type SyncListener = (text: string, progress?: SyncProgress) => void;
+
 export interface SyncHost {
   app: App;
   settings: ObsiSettings;
@@ -35,11 +41,30 @@ export interface SyncHost {
 export class SyncManager {
   running = false;
   status = new Map<string, MountStatus>();
+  /** end of the last finished run in this session */
+  lastRunAt: number | undefined;
+  private listeners = new Set<SyncListener>();
   private db: LocalForagePrevSyncStore;
 
   constructor(private host: SyncHost) {
     const appId = (host.app as any).appId ?? host.app.vault.getName();
     this.db = new LocalForagePrevSyncStore(`obsi-sync/${appId}`);
+  }
+
+  /** live status for the status bar, settings and the welcome window; returns an unsubscribe function */
+  subscribe(listener: SyncListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** mounts whose last run failed */
+  failures(): MountStatus[] {
+    return [...this.status.values()].filter((x) => x.lastError);
+  }
+
+  private report(text: string, progress?: SyncProgress) {
+    this.host.setStatus(text);
+    for (const l of this.listeners) l(text, progress);
   }
 
   async clearHistory(vaultId: string) {
@@ -86,7 +111,7 @@ export class SyncManager {
         st.path = m.path;
         st.lastRun = Date.now();
         this.status.set(m.vaultId, st);
-        this.host.setStatus(t("Obsi: syncing {vault}", { vault: label }));
+        this.report(t("Obsi: syncing {vault}", { vault: label }));
 
         if (m.password === "") {
           st.lastError = "no password set for this mount";
@@ -128,7 +153,8 @@ export class SyncManager {
           trigger,
           progress: (step, info) => {
             if (info?.total) {
-              this.host.setStatus(t("Obsi: {vault} {done}/{total}", { vault: label, done: info.done ?? 0, total: info.total }));
+              const done = info.done ?? 0;
+              this.report(t("Obsi: {vault} {done}/{total}", { vault: label, done, total: info.total }), { done, total: info.total });
             }
           },
         });
@@ -143,8 +169,9 @@ export class SyncManager {
       }
     } finally {
       this.running = false;
+      this.lastRunAt = Date.now();
     }
-    this.host.setStatus(t(allOk ? "Obsi: synced" : "Obsi: sync problem (will retry)"));
+    this.report(t(allOk ? "Obsi: synced" : "Obsi: sync problem (will retry)"));
     if (!allOk && trigger === "manual") {
       const errs = [...this.status.values()].filter((x) => x.lastError).map((x) => `${x.path || "/"}: ${x.lastError}`);
       new Notice(t("Obsi Sync failed: {errors}", { errors: errs.join("; ") }), 8000);
