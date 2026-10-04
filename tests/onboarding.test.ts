@@ -9,13 +9,14 @@ import {
   serializeRules,
   type RulesConfig,
 } from "../src/ai/rules";
-import { DEFAULT_SETTINGS, isConfigured, normalizeSettings } from "../src/settings";
+import { DEFAULT_SETTINGS, isConfigured, normalizeSettings, validateMounts } from "../src/settings";
 
 describe("setup state", () => {
   it("fresh install is not configured and shows the welcome window", () => {
     const s = normalizeSettings(undefined);
     expect(isConfigured(s)).to.equal(false);
     expect(s.onboardingDone).to.equal(false);
+    expect(s.syncOnSave).to.equal(true);
   });
 
   it("needs server, token and a mount with vault + password", () => {
@@ -35,6 +36,15 @@ describe("setup state", () => {
     });
     expect(s.onboardingDone).to.equal(true);
     expect(normalizeSettings({ onboardingDone: false }).onboardingDone).to.equal(false);
+  });
+
+  it("keeps legacy OpenSSL mounts unsupported instead of switching their cipher", () => {
+    const s = normalizeSettings({
+      mounts: [{ path: "Archive", vaultId: "v_old", password: "p", encryptionMethod: "openssl-base64" }],
+    });
+    expect(s.mounts[0].encryptionMethod).to.equal("unknown");
+    expect(isConfigured({ ...s, serverUrl: "http://x", deviceToken: "t" })).to.equal(false);
+    expect(validateMounts(s.mounts).join(" ")).to.include("unsupported encryption method");
   });
 });
 

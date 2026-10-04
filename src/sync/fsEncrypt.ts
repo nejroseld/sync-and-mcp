@@ -8,54 +8,10 @@
  */
 
 import type { CipherMethodType, Entity } from "./baseTypes";
-import * as openssl from "./encryptOpenSSL";
 import * as rclone from "./encryptRClone";
-import { isVaildText } from "./misc";
 
 import cloneDeep from "lodash/cloneDeep";
 import { FakeFs } from "./fsAll";
-
-/**
- * quick guess, no actual decryption here
- * @param name
- * @returns
- */
-function isLikelyOpenSSLEncryptedName(name: string): boolean {
-  if (
-    name.startsWith(openssl.MAGIC_ENCRYPTED_PREFIX_BASE32) ||
-    name.startsWith(openssl.MAGIC_ENCRYPTED_PREFIX_BASE64URL)
-  ) {
-    return true;
-  }
-  return false;
-}
-
-/**
- * quick guess, no actual decryption here
- * @param name
- * @returns
- */
-function isLikelyEncryptedName(name: string): boolean {
-  return isLikelyOpenSSLEncryptedName(name);
-}
-
-/**
- * quick guess, no actual decryption here, only openssl can be guessed here
- * @param name
- * @returns
- */
-function isLikelyEncryptedNameNotMatchMethod(
-  name: string,
-  method: CipherMethodType
-): boolean {
-  if (isLikelyOpenSSLEncryptedName(name) && method !== "openssl-base64") {
-    return true;
-  }
-  if (!isLikelyOpenSSLEncryptedName(name) && method === "openssl-base64") {
-    return true;
-  }
-  return false;
-}
 
 export interface PasswordCheckType {
   ok: boolean;
@@ -110,9 +66,6 @@ export class FakeFsEncrypt extends FakeFs {
   }
 
   isFolderAware() {
-    if (this.method === "openssl-base64") {
-      return false;
-    }
     if (this.method === "rclone-base64") {
       return true;
     }
@@ -120,6 +73,9 @@ export class FakeFsEncrypt extends FakeFs {
   }
 
   async isPasswordOk(): Promise<PasswordCheckType> {
+    if (this.method === "unknown") {
+      return { ok: false, reason: "unknown_encryption_method" };
+    }
     const innerWalkResult = await this.walkPartial();
 
     if (innerWalkResult === undefined || innerWalkResult.length === 0) {
@@ -129,37 +85,11 @@ export class FakeFsEncrypt extends FakeFs {
         reason: "empty_remote",
       };
     }
-    const santyCheckKey = innerWalkResult[0].keyRaw;
-
     if (this.isPasswordEmpty()) {
-      // TODO: no way to distinguish remote rclone encrypted
-      //       if local has no password??
-      if (isLikelyEncryptedName(santyCheckKey)) {
-        return {
-          ok: false,
-          reason: "remote_encrypted_local_no_password",
-        };
-      } else {
-        return {
-          ok: true,
-          reason: "likely_no_password_both_sides",
-        };
-      }
+      return { ok: true, reason: "likely_no_password_both_sides" };
     } else {
-      if (this.method === "unknown") {
-        return {
-          ok: false,
-          reason: "unknown_encryption_method",
-        };
-      }
-      if (isLikelyEncryptedNameNotMatchMethod(santyCheckKey, this.method)) {
-        return {
-          ok: false,
-          reason: "encryption_method_not_matched",
-        };
-      }
       try {
-        const k = await this._decryptName(santyCheckKey);
+        const k = await this._decryptName(innerWalkResult[0].keyRaw);
         if (k === undefined) {
           throw Error(`decryption failed`);
         }
@@ -447,17 +377,10 @@ export class FakeFsEncrypt extends FakeFs {
   }
 
   async _encryptContent(content: ArrayBuffer) {
-    // console.debug("start encryptContent");
     if (this.password === "") {
       return content;
     }
-    if (this.method === "openssl-base64") {
-      const res = await openssl.encryptArrayBuffer(content, this.password);
-      if (res === undefined) {
-        throw Error(`cannot encrypt content`);
-      }
-      return res;
-    } else if (this.method === "rclone-base64") {
+    if (this.method === "rclone-base64") {
       const res =
         await this.cipherRClone!.encryptContentByCallingWorker(content);
       if (res === undefined) {
@@ -474,13 +397,7 @@ export class FakeFsEncrypt extends FakeFs {
     if (this.password === "") {
       return content;
     }
-    if (this.method === "openssl-base64") {
-      const res = await openssl.decryptArrayBuffer(content, this.password);
-      if (res === undefined) {
-        throw Error(`cannot decrypt content`);
-      }
-      return res;
-    } else if (this.method === "rclone-base64") {
+    if (this.method === "rclone-base64") {
       const res =
         await this.cipherRClone!.decryptContentByCallingWorker(content);
       if (res === undefined) {
@@ -497,13 +414,7 @@ export class FakeFsEncrypt extends FakeFs {
     if (this.password === "") {
       return name;
     }
-    if (this.method === "openssl-base64") {
-      const res = await openssl.encryptStringToBase64url(name, this.password);
-      if (res === undefined) {
-        throw Error(`cannot encrypt name=${name}`);
-      }
-      return res;
-    } else if (this.method === "rclone-base64") {
+    if (this.method === "rclone-base64") {
       const res = await this.cipherRClone!.encryptNameByCallingWorker(name);
       if (res === undefined) {
         throw Error(`cannot encrypt name=${name}`);
@@ -519,39 +430,7 @@ export class FakeFsEncrypt extends FakeFs {
     if (this.password === "") {
       return name;
     }
-    if (this.method === "openssl-base64") {
-      if (name.startsWith(openssl.MAGIC_ENCRYPTED_PREFIX_BASE32)) {
-        // backward compitable with the openssl-base32
-        try {
-          const res = await openssl.decryptBase32ToString(name, this.password);
-          if (res !== undefined && isVaildText(res)) {
-            return res;
-          } else {
-            throw Error(`cannot decrypt name=${name}`);
-          }
-        } catch (error) {
-          throw Error(`cannot decrypt name=${name}`);
-        }
-      } else if (name.startsWith(openssl.MAGIC_ENCRYPTED_PREFIX_BASE64URL)) {
-        try {
-          const res = await openssl.decryptBase64urlToString(
-            name,
-            this.password
-          );
-          if (res !== undefined && isVaildText(res)) {
-            return res;
-          } else {
-            throw Error(`cannot decrypt name=${name}`);
-          }
-        } catch (error) {
-          throw Error(`cannot decrypt name=${name}`);
-        }
-      } else {
-        throw Error(
-          `method=${this.method} but the name=${name}, likely mismatch`
-        );
-      }
-    } else if (this.method === "rclone-base64") {
+    if (this.method === "rclone-base64") {
       const res = await this.cipherRClone!.decryptNameByCallingWorker(name);
       if (res === undefined) {
         throw Error(`cannot decrypt name=${name}`);
@@ -566,9 +445,7 @@ export class FakeFsEncrypt extends FakeFs {
     if (this.password === "") {
       return x;
     }
-    if (this.method === "openssl-base64") {
-      return openssl.getSizeFromOrigToEnc(x);
-    } else if (this.method === "rclone-base64") {
+    if (this.method === "rclone-base64") {
       return rclone.getSizeFromOrigToEnc(x);
     } else {
       throw Error(`not supported encrypt method=${this.method}`);

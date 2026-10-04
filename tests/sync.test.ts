@@ -180,16 +180,6 @@ describe("forked syncer through FakeFsEncrypt (rclone-base64)", () => {
     expect(evil.local.files()).to.deep.equal([]);
   });
 
-  it("openssl-base64 also works", async () => {
-    const remote = new MemFs("remote");
-    const a = device({ "a.md": "hello" });
-    const b = device();
-    await doSync(a, remote, { method: "openssl-base64" });
-    await doSync(b, remote, { method: "openssl-base64" });
-    expect(b.local.text("a.md")).to.equal("hello");
-    expect(remote.keys().join("")).to.not.include("a.md");
-  });
-
   it("dot-folders are skipped except allowedHiddenDirs (.obsi)", async () => {
     const remote = new MemFs("remote");
     const a = device({

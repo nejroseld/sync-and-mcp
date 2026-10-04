@@ -19,7 +19,8 @@ export type SyncDirectionType =
   | "incremental_pull_only"
   | "incremental_push_only";
 
-export type CipherMethodType = "rclone-base64" | "openssl-base64" | "unknown";
+/** Legacy/unsupported methods are retained only to prevent silently switching ciphers. */
+export type CipherMethodType = "rclone-base64" | "unknown";
 
 export type EmptyFolderCleanType = "skip" | "clean_both";
 

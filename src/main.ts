@@ -7,8 +7,10 @@ import { RulesStore } from "./ai/rulesStore";
 import { ObsiApi } from "./api/client";
 import { obsidianHttp } from "./api/httpObsidian";
 import type { MeInfo, VaultInfo } from "./api/types";
+import { t } from "./i18n";
 import { DEFAULT_SETTINGS, type ObsiSettings, isConfigured, normalizeSettings } from "./settings";
 import { SyncManager } from "./syncManager";
+import { findOwningMount } from "./sync/mounts";
 import { SetupModal } from "./ui/setupModal";
 import { ObsiSettingTab } from "./ui/settingsTab";
 
@@ -22,6 +24,7 @@ export default class ObsiSyncPlugin extends Plugin {
   vaults: VaultInfo[] = [];
   private statusEl: HTMLElement | undefined;
   private intervalIds: number[] = [];
+  private saveSyncTimer: number | undefined;
 
   async onload() {
     await this.loadSettings();
@@ -60,26 +63,28 @@ export default class ObsiSyncPlugin extends Plugin {
       if (isConfigured(this.settings)) void this.syncManager.syncAll("manual");
       else this.openSetup();
     };
-    this.addRibbonIcon("refresh-cw", "Obsi Sync: sync now", syncNow);
-    this.addCommand({ id: "sync-now", name: "Sync now", callback: syncNow });
-    this.addCommand({ id: "set-up", name: "Set up", callback: () => this.openSetup() });
+    this.addRibbonIcon("refresh-cw", t("Obsi Sync: sync now"), syncNow);
+    this.addCommand({ id: "sync-now", name: t("Sync now"), callback: syncNow });
+    this.addCommand({ id: "set-up", name: t("Set up"), callback: () => this.openSetup() });
     this.addCommand({
       id: "publish-ai",
-      name: "Publish AI Available now",
+      name: t("Publish AI Available now"),
       callback: async () => {
         const r = await this.publisher.runNow();
-        new Notice(r.skipped ? `Obsi Sync: ${r.skipped}` : "Obsi Sync: AI Available published");
+        new Notice(r.skipped ? `Obsi Sync: ${r.skipped}` : t("Obsi Sync: AI Available published"));
       },
     });
     this.addCommand({
       id: "apply-changes",
-      name: "Apply pending MCP changes now",
+      name: t("Apply pending MCP changes now"),
       callback: async () => {
         const r = await this.applier.runNow();
         new Notice(
           r.skipped
             ? `Obsi Sync: ${r.skipped}`
-            : `Obsi Sync: applied ${r.applied}, conflicts ${r.conflicts}, rejected ${r.rejected}`
+            : t("Obsi Sync: applied {applied}, conflicts {conflicts}, rejected {rejected}", {
+                applied: r.applied, conflicts: r.conflicts, rejected: r.rejected,
+              })
         );
       },
     });
@@ -90,8 +95,14 @@ export default class ObsiSyncPlugin extends Plugin {
     const poke = () => this.publisher.schedule();
     this.app.workspace.onLayoutReady(() => {
       // create events fire for every file while the vault is loading; register afterwards
-      this.registerEvent(this.app.vault.on("create", poke));
-      this.registerEvent(this.app.vault.on("modify", poke));
+      this.registerEvent(this.app.vault.on("create", (file) => {
+        poke();
+        if (file instanceof TFile) this.scheduleSaveSync(file.path);
+      }));
+      this.registerEvent(this.app.vault.on("modify", (file) => {
+        poke();
+        if (file instanceof TFile) this.scheduleSaveSync(file.path);
+      }));
       this.registerEvent(this.app.vault.on("delete", poke));
       this.registerEvent(this.app.vault.on("rename", poke));
       this.registerEvent(this.app.metadataCache.on("changed", (f: TFile) => poke()));
@@ -123,7 +134,22 @@ export default class ObsiSyncPlugin extends Plugin {
 
   onunload() {
     this.publisher?.stop();
+    if (this.saveSyncTimer !== undefined) window.clearTimeout(this.saveSyncTimer);
     for (const id of this.intervalIds) window.clearInterval(id);
+  }
+
+  /** Obsidian emits several modify events for one edit; sync after writes settle. */
+  private scheduleSaveSync(path: string) {
+    const s = this.settings;
+    if (!s.syncEnabled || !s.syncOnSave || this.syncManager.running) return;
+    if (!isConfigured(s) || !findOwningMount(path, s.mounts)) return;
+    if (this.saveSyncTimer !== undefined) window.clearTimeout(this.saveSyncTimer);
+    this.saveSyncTimer = window.setTimeout(() => {
+      this.saveSyncTimer = undefined;
+      if (s.syncEnabled && s.syncOnSave && !this.syncManager.running) {
+        void this.syncManager.syncAll("auto_sync_on_save");
+      }
+    }, 1500);
   }
 
   restartTimers() {
@@ -165,7 +191,7 @@ export default class ObsiSyncPlugin extends Plugin {
 
   /** idle status line; "set up" while there is nothing to sync */
   updateStatus() {
-    this.setStatus(isConfigured(this.settings) ? "Obsi: idle" : "Obsi: set up");
+    this.setStatus(t(isConfigured(this.settings) ? "Obsi: idle" : "Obsi: set up"));
   }
 
   setStatus(text: string) {

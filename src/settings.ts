@@ -20,6 +20,7 @@ export interface ObsiSettings {
 
   syncEnabled: boolean;
   syncOnStartup: boolean;
+  syncOnSave: boolean;
   startupDelaySeconds: number;
   /** 0 = off */
   autoSyncMinutes: number;
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: ObsiSettings = {
   adminToken: "",
   syncEnabled: true,
   syncOnStartup: true,
+  syncOnSave: true,
   startupDelaySeconds: 5,
   autoSyncMinutes: 5,
   conflictAction: "keep_newer",
@@ -66,17 +68,20 @@ export const DEFAULT_SETTINGS: ObsiSettings = {
 export const isConfigured = (s: ObsiSettings): boolean =>
   s.serverUrl.trim() !== "" &&
   s.deviceToken.trim() !== "" &&
-  s.mounts.some((m) => m.vaultId !== "" && m.password !== "");
+  s.mounts.some((m) => m.vaultId !== "" && m.password !== "" && m.encryptionMethod === "rclone-base64");
 
 export const normalizeSettings = (raw: any): ObsiSettings => {
   const s: ObsiSettings = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+  s.syncOnSave = typeof raw?.syncOnSave === "boolean" ? raw.syncOnSave : DEFAULT_SETTINGS.syncOnSave;
   s.mounts = (Array.isArray(s.mounts) ? s.mounts : []).map((m: any) => ({
     path: normalizeMountPath(String(m.path ?? "")),
     vaultId: String(m.vaultId ?? ""),
     vaultName: m.vaultName,
     password: String(m.password ?? ""),
     encryptionMethod:
-      m.encryptionMethod === "openssl-base64" ? "openssl-base64" : "rclone-base64",
+      m.encryptionMethod == null || m.encryptionMethod === "rclone-base64"
+        ? "rclone-base64"
+        : "unknown",
   }));
   if (s.conflictAction !== "keep_larger") s.conflictAction = "keep_newer";
   // installs configured before the welcome window existed should not see it
@@ -127,7 +132,9 @@ export const parseMountsImport = (
         vaultName: m.vaultName,
         password: "",
         encryptionMethod:
-          m.encryptionMethod === "openssl-base64" ? "openssl-base64" : "rclone-base64",
+          m.encryptionMethod == null || m.encryptionMethod === "rclone-base64"
+            ? "rclone-base64"
+            : "unknown",
       } as MountConfig;
     }),
   };
@@ -139,6 +146,9 @@ export const validateMounts = (mounts: MountConfig[]): string[] => {
   const paths = new Set<string>();
   const ids = new Set<string>();
   for (const m of mounts) {
+    if (m.encryptionMethod === "unknown") {
+      errs.push(`mount "${m.path || "/"}" uses an unsupported encryption method; manually migrate it to rclone before syncing`);
+    }
     if (paths.has(m.path)) errs.push(`duplicate mount folder "${m.path || "/"}"`);
     paths.add(m.path);
     if (m.vaultId === "") errs.push(`mount "${m.path || "/"}" has no vault`);

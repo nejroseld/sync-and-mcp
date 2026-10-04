@@ -1,5 +1,6 @@
 import { type App, Notice } from "obsidian";
 import type { ObsiApi } from "./api/client";
+import { t } from "./i18n";
 import type { ObsiSettings } from "./settings";
 import { validateMounts } from "./settings";
 import type { SyncTriggerSourceType } from "./sync/baseTypes";
@@ -48,16 +49,16 @@ export class SyncManager {
   async syncAll(trigger: SyncTriggerSourceType = "manual"): Promise<boolean> {
     const s = this.host.settings;
     if (this.running) {
-      if (trigger === "manual") new Notice("Obsi Sync: sync already running");
+      if (trigger === "manual") new Notice(t("Obsi Sync: sync already running"));
       return false;
     }
     if (!s.syncEnabled) {
-      if (trigger === "manual") new Notice("Obsi Sync: sync is disabled in settings");
+      if (trigger === "manual") new Notice(t("Obsi Sync: sync is disabled in settings"));
       return false;
     }
     const api = this.host.getApi();
     if (!api) {
-      if (trigger === "manual") new Notice("Obsi Sync: set server URL and device token first");
+      if (trigger === "manual") new Notice(t("Obsi Sync: set server URL and device token first"));
       return false;
     }
     const problems = validateMounts(s.mounts);
@@ -67,7 +68,7 @@ export class SyncManager {
     }
     const mounts = s.mounts.filter((m) => m.vaultId !== "");
     if (mounts.length === 0) {
-      if (trigger === "manual") new Notice("Obsi Sync: no mounts configured");
+      if (trigger === "manual") new Notice(t("Obsi Sync: no mounts configured"));
       return false;
     }
 
@@ -85,7 +86,7 @@ export class SyncManager {
         st.path = m.path;
         st.lastRun = Date.now();
         this.status.set(m.vaultId, st);
-        this.host.setStatus(`Obsi: syncing ${label}`);
+        this.host.setStatus(t("Obsi: syncing {vault}", { vault: label }));
 
         if (m.password === "") {
           st.lastError = "no password set for this mount";
@@ -127,7 +128,7 @@ export class SyncManager {
           trigger,
           progress: (step, info) => {
             if (info?.total) {
-              this.host.setStatus(`Obsi: ${label} ${info.done ?? 0}/${info.total}`);
+              this.host.setStatus(t("Obsi: {vault} {done}/{total}", { vault: label, done: info.done ?? 0, total: info.total }));
             }
           },
         });
@@ -143,12 +144,12 @@ export class SyncManager {
     } finally {
       this.running = false;
     }
-    this.host.setStatus(allOk ? "Obsi: synced" : "Obsi: sync problem (will retry)");
+    this.host.setStatus(t(allOk ? "Obsi: synced" : "Obsi: sync problem (will retry)"));
     if (!allOk && trigger === "manual") {
       const errs = [...this.status.values()].filter((x) => x.lastError).map((x) => `${x.path || "/"}: ${x.lastError}`);
-      new Notice(`Obsi Sync failed: ${errs.join("; ")}`, 8000);
+      new Notice(t("Obsi Sync failed: {errors}", { errors: errs.join("; ") }), 8000);
     } else if (trigger === "manual") {
-      new Notice("Obsi Sync: done");
+      new Notice(t("Obsi Sync: done"));
     }
     this.host.onSyncFinished(allOk);
     return allOk;
