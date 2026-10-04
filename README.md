@@ -16,7 +16,6 @@
 Сборка:
 
 ```bash
-cd plugin
 npm install
 npm run build        # tsc --noEmit + esbuild, на выходе main.js
 ```
@@ -187,6 +186,7 @@ frontmatter (с задержкой), при изменении правил, п�
 npm test             # mocha + tsx: правила, mount'ы, публикация, правки, синхронизация через шифрование
 npm run build        # tsc --noEmit + esbuild -> main.js
 npm run dev          # esbuild --watch
+OBSI_SERVER_DIR=/path/to/obsi-server npm run e2e # сквозной тест с отдельным сервером
 ```
 
 Чистая логика (правила, диффы, mount'ы, решения по правкам) не зависит от Obsidian и покрыта тестами.

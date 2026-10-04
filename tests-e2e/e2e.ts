@@ -1,9 +1,10 @@
 /**
- * End-to-end check: real Python server (../server) + plugin sync/AI/applier code.
- * Run: npm run e2e   (needs python3 with fastapi/uvicorn/httpx)
+ * End-to-end check: real Python server + plugin sync/AI/applier code.
+ * Run: OBSI_SERVER_DIR=/path/to/obsi-server npm run e2e
+ * Defaults to a sibling server checkout. Needs python3 with fastapi/uvicorn/httpx.
  */
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { strict as assert } from "node:assert";
@@ -16,7 +17,10 @@ import { runMountSync } from "../src/sync/runMount";
 import { MemoryPrevSyncStore } from "../src/sync/syncDb";
 import { MemFs, buf, str } from "../tests/helpers/memFs";
 
-const SERVER_DIR = resolve(__dirname, "../../server");
+const SERVER_DIR = resolve(process.env.OBSI_SERVER_DIR ?? resolve(__dirname, "../../server"));
+if (!existsSync(join(SERVER_DIR, "obsi_server", "__main__.py"))) {
+  throw new Error(`Server checkout not found at ${SERVER_DIR}; set OBSI_SERVER_DIR to the server repository`);
+}
 const PORT = 18000 + Math.floor(Math.random() * 1000);
 const EMB_PORT = PORT + 1000;
 const BASE = `http://127.0.0.1:${PORT}`;
