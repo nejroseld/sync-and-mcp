@@ -43,9 +43,10 @@ export const renderServer = (ctx: SettingsContext, el: HTMLElement) => {
     if (!x || a.loading) return;
     a.loading = true;
     try {
-      const [vaults, tokens, settings] = await Promise.all([x.listVaults(), x.listTokens(), x.getAdminSettings()]);
+      const [vaults, tokens, settings, invites] = await Promise.all([x.listVaults(), x.listTokens(), x.getAdminSettings(), x.listInvites()]);
       plugin.vaults = vaults;
       a.tokens = tokens;
+      a.invites = invites;
       const emb = settings.embedding ?? {};
       a.embedding = { base_url: emb.base_url ?? "", api_key: emb.api_key ?? "", model: emb.model ?? "" };
       a.index = (settings as { index?: typeof a.index }).index;
@@ -91,9 +92,45 @@ export const renderServer = (ctx: SettingsContext, el: HTMLElement) => {
   const x = api()!;
 
   renderVaults(ctx, el, x);
+  renderInvites(ctx, el, x);
   renderTokens(ctx, el, x);
   renderEmbeddings(ctx, el, x);
 };
+
+const renderInvites = (ctx: SettingsContext, el: HTMLElement, x: ObsiApi) => {
+  const a = ctx.state.admin;
+  const head = sectionTitle(el, tr("User invitations"), tr("Create a one-time code so a user can register and create their own vaults."));
+  let name = "";
+  textField(head, { name: tr("Invitation name"), value: name, placeholder: tr("e.g. Alice"), onChange: (v) => { name = v; } });
+  button(buttonRow(head), { text: tr("Create invitation"), cta: true, onClick: async () => {
+    if (!name.trim()) return void new Notice(tr("Enter a name"));
+    try {
+      const invite = await x.createInvite(name.trim());
+      const code = invite.code ?? "";
+      a.invites.unshift({ ...invite, code: undefined });
+      ctx.refresh();
+      new InviteCodeModal(ctx.app, invite.name, code).open();
+    } catch (e) { new Notice(tr("Failed: {error}", { error: errorText(e) })); }
+  } });
+  const list = el.createDiv({ cls: "obsi-ui-list" });
+  for (const invite of a.invites) new Setting(list)
+    .setName(invite.name)
+    .setDesc(tr("Created {time} · {status}", { time: relativeTime(invite.created_at), status: invite.used_at ? tr("Used") : tr("Unused") }));
+  if (!a.invites.length) list.createEl("p", { cls: "obsi-ui-muted", text: tr("No invitations yet.") });
+};
+
+class InviteCodeModal extends Modal {
+  constructor(app: App, private inviteName: string, private code: string) { super(app); }
+  onOpen() {
+    this.modalEl.addClass("obsi-ui-dialog");
+    this.titleEl.setText(tr("Invitation code"));
+    this.contentEl.createEl("p", { text: tr("Share this code with {name}. It is shown only once.", { name: this.inviteName }) });
+    textField(this.contentEl, { name: tr("Invitation code"), value: this.code, onChange: () => {} });
+    button(buttonRow(this.contentEl), { text: tr("Copy"), onClick: async () => { await copyToClipboard(this.code, tr("Invitation code copied")); new Notice(tr("Invitation code copied")); } });
+    button(buttonRow(this.contentEl), { text: tr("Done"), cta: true, onClick: () => this.close() });
+  }
+  onClose() { this.contentEl.empty(); }
+}
 
 const renderVaults = (ctx: SettingsContext, el: HTMLElement, x: ObsiApi) => {
   const { plugin } = ctx;

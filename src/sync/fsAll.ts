@@ -19,10 +19,11 @@ export abstract class FakeFs {
     key: string,
     content: ArrayBuffer,
     mtime: number,
-    ctime: number
+    ctime: number,
+    isMarkdown?: boolean
   ): Promise<Entity>;
   abstract readFile(key: string): Promise<ArrayBuffer>;
-  abstract rename(key1: string, key2: string): Promise<void>;
+  abstract rename(key1: string, key2: string, isMarkdown?: boolean): Promise<void>;
   abstract rm(key: string): Promise<void>;
   abstract checkConnect(callbackFunc?: any): Promise<boolean>;
   abstract getUserDisplayName(): Promise<string>;

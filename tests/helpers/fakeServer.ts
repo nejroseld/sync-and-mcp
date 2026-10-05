@@ -27,6 +27,7 @@ export class FakeServer {
   acks: any[] = [];
   clock = 5_000_000;
   requests: string[] = [];
+  requestHeaders: Record<string, string | undefined>[] = [];
   token = "tok";
 
   constructor(public vaultIds: string[]) {
@@ -40,6 +41,7 @@ export class FakeServer {
   http: HttpClient = async (req: HttpRequest) => {
     const u = new URL(req.url);
     this.requests.push(`${req.method} ${u.pathname}`);
+    this.requestHeaders.push(req.headers ?? {});
     if (req.headers?.Authorization !== `Bearer ${this.token}`) {
       return json(401, { error: { code: "unauthorized", message: "bad token" } });
     }

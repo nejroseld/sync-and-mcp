@@ -14,6 +14,7 @@ import type ObsiSyncPlugin from "../main";
 
 type Step = "welcome" | "server" | "vault" | "password" | "ai" | "import" | "finish";
 type AiChoice = "off" | "ticked" | "all_but_private";
+type ServerAuthMode = "token" | "login" | "register";
 /** syncing → ok/failed for a full setup; "folders" = connection only; "review" = import over an old setup */
 type FinishState = "syncing" | "ok" | "failed" | "folders" | "review";
 
@@ -33,7 +34,12 @@ export class SetupModal extends Modal {
   private step: Step = "welcome";
   private serverUrl: string;
   private token: string;
+  private authMode: ServerAuthMode = "token";
+  private username = "";
+  private accountPassword = "";
+  private inviteCode = "";
   private meName = "";
+  private hasUserAccount = false;
   private vaults: VaultInfo[] = [];
   private aiAvailable = true;
   private vaultId = "";
@@ -191,10 +197,7 @@ export class SetupModal extends Modal {
   }
 
   private renderServer() {
-    this.header(
-      tr("Connect to your server"),
-      tr("You get the address and a device token from whoever runs your Obsi server. On a self-hosted server they are in server/data/TOKENS.txt.")
-    );
+    this.header(tr("Connect to your server"), tr("Use an account, an access token, or a device token supplied by your server administrator."));
     const form = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
     const { input: urlInput } = textField(form, {
       name: tr("Server address"),
@@ -202,12 +205,17 @@ export class SetupModal extends Modal {
       placeholder: "https://obsi.example.com",
       onChange: (v) => (this.serverUrl = v),
     });
-    textField(form, {
-      name: tr("Device token"),
-      value: this.token,
-      secret: true,
-      onChange: (v) => (this.token = v.trim()),
-    });
+    const modes = form.createDiv({ cls: "obsi-ui-choices" });
+    for (const [mode, label] of [["login", tr("Log in")], ["register", tr("Create account")], ["token", tr("Use access token")]] as const) {
+      choiceCard(modes, { icon: mode === "token" ? "key" : "user", title: label, selected: this.authMode === mode, onClick: () => { this.authMode = mode; this.render(); } });
+    }
+    if (this.authMode === "token") {
+      textField(form, { name: tr("Access or device token"), value: this.token, secret: true, onChange: (v) => (this.token = v.trim()) });
+    } else {
+      textField(form, { name: tr("Username"), value: this.username, onChange: (v) => (this.username = v.trim()) });
+      textField(form, { name: tr("Password"), value: this.accountPassword, secret: true, onChange: (v) => (this.accountPassword = v) });
+      if (this.authMode === "register") textField(form, { name: tr("Invitation code"), value: this.inviteCode, secret: true, onChange: (v) => (this.inviteCode = v.trim()) });
+    }
     const errorBox = this.contentEl.createDiv();
     window.setTimeout(() => urlInput.focus(), 0);
 
@@ -218,16 +226,30 @@ export class SetupModal extends Modal {
         errorBox.empty();
         const url = normalizeServerUrl(this.serverUrl);
         if (!url) return void callout(errorBox, "error", tr("Enter the server address."));
-        if (!this.token) return void callout(errorBox, "error", tr("Enter the device token."));
         this.serverUrl = url;
         urlInput.value = url;
         try {
+          if (this.authMode !== "token") {
+            if (!this.username || !this.accountPassword) return void callout(errorBox, "error", tr("Enter your username and password."));
+            if (this.authMode === "register" && !this.inviteCode) return void callout(errorBox, "error", tr("Enter an invitation code."));
+            const authApi = new ObsiApi(url, "", obsidianHttp);
+            const auth = this.authMode === "register"
+              ? await authApi.register(this.inviteCode, this.username, this.accountPassword)
+              : await authApi.login(this.username, this.accountPassword);
+            this.token = auth.token;
+            this.meName = auth.user.username;
+          } else if (!this.token) return void callout(errorBox, "error", tr("Enter an access token."));
           const api = new ObsiApi(url, this.token, obsidianHttp);
           const me = await api.me();
           this.vaults = await api.listVaults();
-          this.meName = me.name;
+          this.hasUserAccount = !!me.user;
+          this.meName = me.user?.username ?? me.name;
           this.aiAvailable = await api.health().then((h) => h.features?.ai !== false, () => true);
         } catch (e) {
+          if (this.authMode !== "token" && typeof e === "object" && e !== null && "status" in e) {
+            callout(errorBox, "error", tr("Account sign-in failed: {error}", { error: errorText(e) }));
+            return;
+          }
           const problem = connectProblem(e);
           const detail = errorText(e);
           callout(errorBox, "error", {
@@ -251,7 +273,7 @@ export class SetupModal extends Modal {
     );
     const noVaults = this.vaults.length === 0;
     if (noVaults) {
-      callout(this.contentEl, "warning", tr("This token doesn't have access to any vault yet. Ask the server admin to grant one, then try again."));
+      callout(this.contentEl, "warning", tr("This account has no vaults yet. Create one or ask the server admin for access."));
     } else {
       const group = choiceGroup(this.contentEl, tr("Server vault"));
       for (const v of this.vaults) {
@@ -274,6 +296,21 @@ export class SetupModal extends Modal {
         await this.saveConnection(false);
         this.finish = "folders";
         this.go("finish");
+      });
+    }
+    if (this.hasUserAccount) {
+      let name = "";
+      const row = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
+      textField(row, { name: tr("New vault name"), value: name, onChange: (v) => { name = v; } });
+      new ButtonComponent(row).setButtonText(tr("Create vault")).onClick(async () => {
+        if (!name.trim()) return void callout(row, "error", tr("Enter a name"));
+        try {
+          const vault = await this.api().createOwnedVault(name.trim());
+          this.vaults.push(vault);
+          this.vaultId = vault.id;
+          this.vaultHasData = false;
+          this.render();
+        } catch (e) { callout(row, "error", errorText(e)); }
       });
     }
     this.footer(() => this.go("server"), {

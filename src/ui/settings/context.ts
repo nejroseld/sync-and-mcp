@@ -1,6 +1,6 @@
 import type { App } from "obsidian";
 import type { RulesConfig } from "../../ai/rules";
-import type { TokenInfo } from "../../api/types";
+import type { InviteInfo, TokenInfo } from "../../api/types";
 import type ObsiSyncPlugin from "../../main";
 
 export type SectionId = "overview" | "sync" | "folders" | "devices" | "ai" | "server" | "dev";
@@ -21,6 +21,7 @@ export interface SettingsState {
     loaded: boolean;
     loading: boolean;
     tokens: TokenInfo[];
+    invites: InviteInfo[];
     embedding: { base_url: string; api_key: string; model: string };
     index?: { chunks?: number; embedded?: number; pending?: number; last_error?: string | null };
     error?: string;
@@ -37,7 +38,7 @@ export const initialState = (): SettingsState => ({
   editingMount: undefined,
   connectionEditing: false,
   qrVisible: false,
-  admin: { loaded: false, loading: false, tokens: [], embedding: { base_url: "", api_key: "", model: "" } },
+  admin: { loaded: false, loading: false, tokens: [], invites: [], embedding: { base_url: "", api_key: "", model: "" } },
   devClicks: 0,
   devUnlocked: false,
 });

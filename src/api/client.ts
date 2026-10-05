@@ -2,6 +2,7 @@ import type { HttpClient, HttpRequest } from "./http";
 import type {
   AckStatus,
   EmbeddingSettings,
+  InviteInfo,
   ManifestFile,
   MeInfo,
   PendingChange,
@@ -86,13 +87,15 @@ export class ObsiApi {
     method: HttpRequest["method"],
     path: string,
     payload?: unknown,
-    okStatuses?: number[]
+    okStatuses?: number[],
+    auth = true
   ): Promise<T> {
     const res = await this.raw(method, path, {
       body: payload === undefined ? undefined : JSON.stringify(payload),
       headers:
         payload === undefined ? undefined : { "Content-Type": "application/json" },
       okStatuses,
+      auth,
     });
     if (res.body.byteLength === 0) {
       return undefined as T;
@@ -101,6 +104,12 @@ export class ObsiApi {
   }
 
   // ---- general ----
+  login(username: string, password: string) {
+    return this.json<{ token: string; user: { id: string; username: string } }>("POST", "/auth/login", { username, password }, undefined, false);
+  }
+  register(invite_code: string, username: string, password: string) {
+    return this.json<{ token: string; user: { id: string; username: string } }>("POST", "/auth/register", { invite_code, username, password }, undefined, false);
+  }
   async health() {
     const res = await this.raw("GET", "/health", { auth: false });
     return JSON.parse(td.decode(res.body)) as {
@@ -119,6 +128,15 @@ export class ObsiApi {
   // ---- admin ----
   createVault(name: string) {
     return this.json<VaultInfo>("POST", "/admin/vaults", { name });
+  }
+  createOwnedVault(name: string) {
+    return this.json<VaultInfo>("POST", "/vaults", { name });
+  }
+  async listInvites() {
+    return (await this.json<{ invites: InviteInfo[] }>("GET", "/admin/invites")).invites;
+  }
+  createInvite(name: string) {
+    return this.json<InviteInfo>("POST", "/admin/invites", { name });
   }
   patchVault(
     vid: string,
@@ -192,7 +210,8 @@ export class ObsiApi {
     key: string,
     content: ArrayBuffer,
     mtimeCli: number,
-    ctimeCli: number
+    ctimeCli: number,
+    isMarkdown?: boolean
   ) {
     return this.rawJson<ServerFileObject>(
       "PUT",
@@ -202,6 +221,7 @@ export class ObsiApi {
         "Content-Type": "application/octet-stream",
         "X-Mtime-Cli": String(Math.round(mtimeCli)),
         "X-Ctime-Cli": String(Math.round(ctimeCli)),
+        ...(isMarkdown === undefined ? {} : { "X-Obsi-Markdown": String(isMarkdown) }),
       }
     );
   }
@@ -305,4 +325,3 @@ export class ObsiApi {
     }
   }
 }
-

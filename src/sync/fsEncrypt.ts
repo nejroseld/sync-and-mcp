@@ -251,7 +251,8 @@ export class FakeFsEncrypt extends FakeFs {
         keyEnc,
         content,
         mtime,
-        ctime
+        ctime,
+        key.toLowerCase().endsWith(".md")
       );
       return copyEntityAndCopyKeyEncSizeEnc(innerEntity);
     } else {
@@ -260,7 +261,8 @@ export class FakeFsEncrypt extends FakeFs {
         keyEnc,
         contentEnc,
         mtime,
-        ctime
+        ctime,
+        key.toLowerCase().endsWith(".md")
       );
       return {
         key: key,
@@ -317,7 +319,7 @@ export class FakeFsEncrypt extends FakeFs {
       }
       this.cacheMapOrigToEnc[key2] = key2Enc;
     }
-    return await this.innerFs.rename(key1Enc, key2Enc);
+    return await this.innerFs.rename(key1Enc, key2Enc, key2.toLowerCase().endsWith(".md"));
   }
 
   async rm(key: string): Promise<void> {

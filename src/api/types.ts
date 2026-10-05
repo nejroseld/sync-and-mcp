@@ -9,6 +9,15 @@ export interface MeInfo {
   name: string;
   kind: TokenKind;
   grants: Record<string, string[]>;
+  user?: { id: string; username: string };
+}
+
+export interface InviteInfo {
+  id: string;
+  name: string;
+  code?: string;
+  created_at: number;
+  used_at: number | null;
 }
 
 export interface VaultInfo {

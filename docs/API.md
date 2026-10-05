@@ -13,13 +13,21 @@
 `{"ok": true, "version": "0.1.0", "features": {"ai": true, "mcp": true, "rag": true}}`
 
 ### `GET /api/v1/me`
-`{"token_id": "...", "name": "laptop", "kind": "device", "grants": {"v_xxx": ["read","write"]}}`
+Для access/device-токена: `{"token_id": "...", "name": "laptop", "kind": "device", "grants": {"v_xxx": ["read","write"]}}`. Для пользовательского токена дополнительно возвращается `user: {"id": "...", "username": "alice"}`.
+
+### Учетные записи
+* `POST /api/v1/auth/register` `{"invite_code":"...","username":"alice","password":"..."}` → `{"token":"...","user":{"id":"...","username":"alice"}}`.
+* `POST /api/v1/auth/login` `{"username":"alice","password":"..."}` → такой же ответ. Пароль учетной записи не является паролем шифрования vault.
+* `POST /api/v1/vaults` `{"name":"Personal"}` (пользовательский токен) создаёт принадлежащий пользователю vault.
 
 ### `GET /api/v1/vaults`
 Vault'ы, на которые у токена есть хоть один грант (admin — все):
 `{"vaults": [{"id": "v_xxx", "name": "Personal", "created_at": 1730000000000, "rag": {"enabled": true}}]}`
 
 ## Admin (kind=admin)
+
+* `GET /api/v1/admin/invites` → `{"invites":[{"id":"...","name":"Alice","created_at":1730000000000,"used_at":null}]}`. Код в списке не возвращается.
+* `POST /api/v1/admin/invites` `{"name":"Alice"}` → `{id,name,code,created_at,used_at}`. Код выдаётся только при создании и используется для регистрации.
 
 * `POST /api/v1/admin/vaults` `{"name": "Work"}` → `{"id": "v_...", "name": "Work", ...}`
 * `PATCH /api/v1/admin/vaults/{vid}` `{"name"?: str, "rag"?: {"enabled": bool, "chunk_chars"?: int, "chunk_overlap"?: int}}`
@@ -37,16 +45,14 @@ Vault'ы, на которые у токена есть хоть один гра�
 
 ## Sync storage (шифротекст, kind=device)
 
-`key` — непрозрачная строка от `FakeFsEncrypt` (зашифрованный путь). Папки — ключи, оканчивающиеся на `/`.
-Сервер ничего не знает о содержимом.
+`key` — непрозрачная строка от `FakeFsEncrypt` (зашифрованный путь). Папки — ключи, оканчивающиеся на `/`. Сервер не видит имя и содержимое файлов.
 
 * `GET /api/v1/vaults/{vid}/files` (грант `read`) →
   `{"files": [{"key": "abc/def", "size": 123, "mtime_cli": 1730000000000, "ctime_cli": 1730000000000, "mtime_svr": 1730000000500, "etag": "<sha256 hex>"}]}`
 * `GET /api/v1/vaults/{vid}/files/{key:path}` (`read`) → тело `application/octet-stream`, заголовки
   `ETag`, `X-Mtime-Cli`, `X-Ctime-Cli`, `X-Mtime-Svr`. 404 если нет.
 * `HEAD` — то же без тела (stat).
-* `PUT /api/v1/vaults/{vid}/files/{key:path}` (`write`) — тело = содержимое (для папки `key` с `/` на конце
-  и пустое тело). Заголовки `X-Mtime-Cli`, `X-Ctime-Cli` (ms). Ответ — объект файла как в листинге.
+* `PUT /api/v1/vaults/{vid}/files/{key:path}` (`write`) — тело = содержимое (для папки `key` с `/` на конце и пустое тело). Заголовки `X-Mtime-Cli`, `X-Ctime-Cli` (ms). Плагин передает `X-Obsi-Markdown: true|false`, чтобы сервер определил тип исходного файла при зашифрованных имени и содержимом; заголовок необязателен для совместимости. Ответ — объект файла как в листинге.
 * `DELETE /api/v1/vaults/{vid}/files/{key:path}` (`write`) → `204`. Удаление отсутствующего — тоже 204.
 * Лимит размера тела настраивается (по умолчанию 200 MB).
 

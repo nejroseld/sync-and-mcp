@@ -76,9 +76,10 @@ export class FakeFsObsiServer extends FakeFs {
     key: string,
     content: ArrayBuffer,
     mtime: number,
-    ctime: number
+    ctime: number,
+    isMarkdown?: boolean
   ): Promise<Entity> {
-    const f = await this.api.putFile(this.vaultId, key, content, mtime, ctime);
+    const f = await this.api.putFile(this.vaultId, key, content, mtime, ctime, isMarkdown);
     return toEntity(f);
   }
 
@@ -86,14 +87,15 @@ export class FakeFsObsiServer extends FakeFs {
     return await this.api.getFile(this.vaultId, key);
   }
 
-  async rename(key1: string, key2: string): Promise<void> {
+  async rename(key1: string, key2: string, isMarkdown?: boolean): Promise<void> {
     const st = await this.stat(key1);
     const content = await this.readFile(key1);
     await this.writeFile(
       key2,
       content,
       st.mtimeCli ?? Date.now(),
-      st.mtimeCli ?? Date.now()
+      st.mtimeCli ?? Date.now(),
+      isMarkdown
     );
     await this.rm(key1);
   }

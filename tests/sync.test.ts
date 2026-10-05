@@ -342,6 +342,7 @@ describe("FakeFsObsiServer / API client wire format", () => {
     const stored = [...server.vaults.get("v1")!.values()].filter((f) => f.content.byteLength > 0);
     expect(stored[0].mtime_cli).to.equal(4242);
     expect(server.requests.some((r) => r.startsWith("PUT /api/v1/vaults/v1/files/"))).to.equal(true);
+    expect(server.requestHeaders.some((h) => h["X-Obsi-Markdown"] === "true")).to.equal(true);
 
     const dev2 = device();
     const res2 = await runMountSync({
@@ -397,6 +398,23 @@ describe("FakeFsObsiServer / API client wire format", () => {
     });
     expect(res2.ok).to.equal(false);
     expect(res2.error?.message).to.include("network down");
+  });
+});
+
+describe("account authentication API", () => {
+  it("registers without bearer auth and returns a user token", async () => {
+    let authorization: string | undefined;
+    let body = "";
+    const api = new ObsiApi("http://srv", "", async (req) => {
+      authorization = req.headers?.Authorization;
+      body = String(req.body);
+      return { status: 201, headers: {}, body: new TextEncoder().encode(JSON.stringify({ token: "user-token", user: { id: "u1", username: "alice" } })).buffer as ArrayBuffer };
+    });
+    const result = await api.register("invite", "alice", "pw");
+    expect(authorization).to.equal(undefined);
+    expect(JSON.parse(body)).to.deep.equal({ invite_code: "invite", username: "alice", password: "pw" });
+    expect(result.token).to.equal("user-token");
+    expect(result.user.username).to.equal("alice");
   });
 });
 
