@@ -71,7 +71,7 @@ const renderNotSetUp = (ctx: SettingsContext, el: HTMLElement) => {
   choiceCard(choices, {
     icon: "server",
     title: tr("Connect to my server"),
-    desc: tr("I have a server address and can sign in or use an access token."),
+    desc: tr("With an invitation, your account or an access token."),
     onClick: () => ctx.plugin.openSetup(),
   });
   choiceCard(choices, {
@@ -174,7 +174,7 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
   const c = card(el, {
     icon: "server",
     title: s.serverUrl || tr("No server"),
-    subtitle: plugin.me ? tr("Signed in as “{name}”", { name: plugin.me.name }) : s.deviceToken ? tr("Device token saved") : tr("No device token"),
+    subtitle: connectionSubtitle(ctx),
   });
   // attached on first check only, so an unchecked card has no empty body
   const result = createDiv();
@@ -193,7 +193,7 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
         me.kind === "device"
           ? tr("Connected as “{name}”. Server {version}. Vaults: {vaults}.", { name: me.name, version: h.version, vaults: names })
           : tr("This is a “{kind}” token, not a device token. Sync needs a device token.", { kind: me.kind }));
-      if (c.subtitleEl) c.subtitleEl.setText(tr("Signed in as “{name}”", { name: me.name }));
+      if (c.subtitleEl) c.subtitleEl.setText(connectionSubtitle(ctx));
     } catch (e) {
       const p = connectProblem(e);
       callout(result, "error", {
@@ -208,6 +208,12 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
     button(c.actions, { text: tr("Check"), busyText: tr("Checking..."), onClick: check });
     if (!state.connectionEditing) button(c.actions, { text: tr("Change"), onClick: () => { state.connectionEditing = true; ctx.refresh(); } });
   }
+  // with a plain device token, signing in unlocks own vaults, per-device QR codes and assistants
+  if (plugin.me && !plugin.me.account_token && !state.connectionEditing) {
+    const hint = c.body.createDiv({ cls: "obsi-ui-muted" });
+    hint.setText(tr("Have an account on this server? Sign in to create vaults, add devices one by one and connect AI assistants."));
+    button(buttonRow(c.body), { text: tr("Sign in"), icon: "log-in", onClick: () => plugin.openSetup("server") });
+  }
   if (!state.connectionEditing) return;
 
   const form = c.body.createDiv({ cls: "obsi-ui-form" });
@@ -216,6 +222,7 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
   textField(form, { name: tr("Server address"), value: url, placeholder: "https://obsi.example.com", onChange: (v) => (url = v) });
   textField(form, { name: tr("Device token"), desc: tr("A token of kind “device” with read and write access to your vaults."), value: token, secret: true, onChange: (v) => (token = v.trim()) });
   callout(form, "info", tr("Changing the server or token does not touch your notes. Folders and passwords stay as they are."));
+  button(buttonRow(form), { text: tr("Sign in with username and password instead"), icon: "log-in", onClick: () => { state.connectionEditing = false; plugin.openSetup("server"); } });
   const row = buttonRow(form);
   button(row, { text: tr("Cancel"), onClick: () => { state.connectionEditing = false; ctx.refresh(); } });
   button(row, {
@@ -249,4 +256,11 @@ const renderAbout = (ctx: SettingsContext, el: HTMLElement) => {
   if (isConfigured(plugin.settings)) {
     button(about, { text: tr("Run setup again"), onClick: () => plugin.openSetup() });
   }
+};
+
+const connectionSubtitle = (ctx: SettingsContext) => {
+  const { me, settings } = ctx.plugin;
+  if (me?.account_token && me.user) return tr("Account “{name}”", { name: me.user.username });
+  if (me) return tr("Device token “{name}”", { name: me.name });
+  return settings.deviceToken ? tr("Device token saved") : tr("No device token");
 };

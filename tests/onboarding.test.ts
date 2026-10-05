@@ -11,7 +11,7 @@ import {
   type RulesConfig,
 } from "../src/ai/rules";
 import { ApiError } from "../src/api/client";
-import { checkVaultPassword, connectProblem, normalizeServerUrl } from "../src/onboarding";
+import { accountProblem, checkVaultPassword, connectProblem, normalizeServerUrl, parseInvitation } from "../src/onboarding";
 import { DEFAULT_SETTINGS, isConfigured, normalizeSettings, validateMounts } from "../src/settings";
 import { syncer } from "../src/sync/sync";
 import { FakeFsEncrypt } from "../src/sync/fsEncrypt";
@@ -156,5 +156,30 @@ describe("rules presets", () => {
     expect(rulesPreset(renamed)).to.equal("ticked");
     expect(rulesPreset({ ...STARTER_RULES, mode: "allow_by_default" })).to.equal("custom");
     expect(rulesPreset({ ...STARTER_RULES, rules: [...STARTER_RULES.rules, { id: "f", type: "folder", effect: "include", path: "P" }] })).to.equal("custom");
+  });
+});
+
+describe("invitations", () => {
+  it("reads the server and the code from a forwarded message", () => {
+    const text = "Obsi Sync invitation for alice\nServer: https://203-0-113-10.sslip.io/\nCode: inv_Ab-c_9\nIn Obsidian: ...";
+    expect(parseInvitation(text)).to.deep.equal({ serverUrl: "https://203-0-113-10.sslip.io", code: "inv_Ab-c_9" });
+  });
+
+  it("works with Russian labels and punctuation around the address", () => {
+    expect(parseInvitation("Сервер: «https://obsi.example.com». Код: inv_x1")).to.deep.equal({ serverUrl: "https://obsi.example.com", code: "inv_x1" });
+  });
+
+  it("accepts a bare code", () => {
+    expect(parseInvitation("  inv_abc  ")).to.deep.equal({ serverUrl: undefined, code: "inv_abc" });
+    expect(parseInvitation("legacycode")).to.deep.equal({ serverUrl: undefined, code: "legacycode" });
+    expect(parseInvitation("")).to.deep.equal({ serverUrl: undefined, code: undefined });
+  });
+
+  it("maps account errors to fixable problems", () => {
+    expect(accountProblem(new ApiError(401, "invalid_credentials", "x"))).to.equal("bad_credentials");
+    expect(accountProblem(new ApiError(401, "invalid_invite", "x"))).to.equal("bad_invite");
+    expect(accountProblem(new ApiError(409, "username_taken", "x"))).to.equal("username_taken");
+    expect(accountProblem(new ApiError(404, "not_found", "x"))).to.equal(undefined);
+    expect(accountProblem(new Error("network"))).to.equal(undefined);
   });
 });

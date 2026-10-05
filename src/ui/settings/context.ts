@@ -17,16 +17,21 @@ export interface SettingsState {
   editingMount: number | undefined;
   connectionEditing: boolean;
   qrVisible: boolean;
-  personalTokens: {
+  /** the signed-in account's own tokens (devices and AI assistants); reloaded when the device token changes */
+  account: {
     loaded: boolean;
     loading: boolean;
     token: string;
     username?: string;
     userId?: string;
+    /** this device is signed in with an account session, which can issue tokens */
     accountToken: boolean;
+    tokenId?: string;
     tokens: TokenInfo[];
     error?: string;
   };
+  /** setup QR of a device just added; holds a live token, so it is dropped when the page closes */
+  newDevice: { name: string; payload: string } | undefined;
   admin: {
     loaded: boolean;
     loading: boolean;
@@ -49,7 +54,8 @@ export const initialState = (): SettingsState => ({
   editingMount: undefined,
   connectionEditing: false,
   qrVisible: false,
-  personalTokens: { loaded: false, loading: false, token: "", accountToken: false, tokens: [] },
+  account: { loaded: false, loading: false, token: "", accountToken: false, tokens: [] },
+  newDevice: undefined,
   admin: { loaded: false, loading: false, tokens: [], invites: [], users: [], embedding: { base_url: "", api_key: "", model: "" } },
   devClicks: 0,
   devUnlocked: false,

@@ -32,11 +32,9 @@ export const renderServer = (ctx: SettingsContext, el: HTMLElement) => {
   const s = plugin.settings;
   const a = state.admin;
 
-  renderPersonalTokens(ctx, el);
-
   el.createEl("p", {
     cls: "obsi-ui-lead",
-    text: tr("For whoever runs the Obsi server: create vaults, give access to devices and AI assistants, set up semantic search. Needs an admin token; everyday use doesn't."),
+    text: tr("For whoever runs the Obsi server: invite people, manage vaults and tokens, set up semantic search. Needs the admin token from the server installation. Your own devices and assistants are on the Devices and AI tabs."),
   });
 
   const api = () => plugin.getAdminApi();
@@ -94,145 +92,72 @@ export const renderServer = (ctx: SettingsContext, el: HTMLElement) => {
   }
   const x = api()!;
 
-  renderVaults(ctx, el, x);
   renderUserAccounts(ctx, el, x);
+  renderVaults(ctx, el, x);
   renderTokens(ctx, el, x);
   renderEmbeddings(ctx, el, x);
 };
 
-const renderPersonalTokens = (ctx: SettingsContext, el: HTMLElement) => {
-  const { plugin, state } = ctx;
-  const p = state.personalTokens;
-  const current = plugin.settings.deviceToken;
-  if (p.token !== current) {
-    p.token = current;
-    p.loaded = false;
-    p.loading = false;
-    p.error = undefined;
-    p.tokens = [];
-  }
-  const section = sectionTitle(el, tr("My access tokens"), tr("Create separate tokens for your devices and AI assistants. Each token receives only the vault permissions you choose."));
-  if (!plugin.settings.serverUrl || !current) {
-    callout(section, "info", tr("Connect to your account on the Overview tab to manage your tokens."));
-    return;
-  }
-  const api = plugin.getApi()!;
-  const load = async () => {
-    if (p.loading) return;
-    const requestedToken = p.token;
-    p.loading = true;
-    try {
-      const me = await api.me();
-      const accountToken = me.account_token === true;
-      const [tokens, vaults] = accountToken ? await Promise.all([api.listOwnTokens(), api.listVaults()]) : [[], []];
-      if (p.token === requestedToken) {
-        p.accountToken = accountToken;
-        p.username = me.user?.username;
-        p.userId = me.user?.id;
-        p.tokens = tokens;
-        if (accountToken) plugin.vaults = vaults;
-        p.loaded = true;
-        p.error = undefined;
-      }
-    } catch (e) {
-      if (p.token === requestedToken) {
-        p.error = errorText(e);
-        p.loaded = false;
-      }
-    } finally {
-      if (p.token === requestedToken) p.loading = false;
-    }
-    if (p.token === requestedToken) ctx.refresh();
-  };
-  if (p.error) callout(section, "error", tr("Could not load your tokens: {error}", { error: p.error }));
-  if (!p.loaded) {
-    button(buttonRow(section), { text: p.error ? tr("Retry") : tr("Load my tokens"), busyText: tr("Loading..."), onClick: load });
-    if (!p.loading && !p.error) void load();
-    return;
-  }
-  if (!p.accountToken) {
-    callout(section, "info", tr("Sign in with your username and password in the setup wizard to issue personal tokens. An access token cannot issue more tokens."));
-    button(buttonRow(section), { text: tr("Sign in to account"), onClick: () => plugin.openSetup("server") });
-    return;
-  }
-  section.createEl("p", { cls: "obsi-ui-muted", text: tr("Signed in as {name}.", { name: p.username ?? "" }) });
-  const ownedVaults = plugin.vaults.filter((vault) => vault.owner_user_id === p.userId);
-  button(buttonRow(section), {
-    text: tr("New personal token"), icon: "plus", cta: true,
-    onClick: () => new NewTokenModal(ctx.app, api, ownedVaults, async () => {
-      p.tokens = await api.listOwnTokens();
-      ctx.refresh();
-    }, "personal").open(),
-  });
-  const list = section.createDiv({ cls: "obsi-ui-list" });
-  const tokens = p.tokens.filter((t) => !t.is_session);
-  for (const token of [...tokens.filter((t) => !t.revoked_at), ...tokens.filter((t) => t.revoked_at)]) {
-    const row = new Setting(list)
-      .setName(token.name)
-      .setDesc(tr("{kind} · {grants} · last used {time}", {
-        kind: KIND_LABEL(token.kind), grants: grantsText(token, plugin.vaults), time: relativeTime(token.last_used_at ?? undefined),
-      }));
-    if (token.revoked_at) pill(row.nameEl, tr("revoked"), "muted");
-    else row.addButton((b) => b.setButtonText(tr("Revoke")).onClick(async () => {
-      const ok = await confirmAction(ctx.app, tr("Revoke “{name}”?", { name: token.name }), tr("Everything using this token loses access immediately. This can't be undone."), tr("Revoke"));
-      if (!ok) return;
-      try {
-        await api.revokeOwnToken(token.id);
-        p.tokens = await api.listOwnTokens();
-        ctx.refresh();
-      } catch (e) { new Notice(tr("Failed: {error}", { error: errorText(e) })); }
-    }));
-  }
-  if (!tokens.length) list.createEl("p", { cls: "obsi-ui-muted", text: tr("No personal tokens yet.") });
-};
-
 const renderUserAccounts = (ctx: SettingsContext, el: HTMLElement, x: ObsiApi) => {
   const a = ctx.state.admin;
-  const section = sectionTitle(el, tr("User accounts"), tr("People with accounts sign in using a username and password. Invite someone here; they create their account in the setup wizard."));
-  section.createEl("p", { cls: "obsi-ui-muted", text: tr("Registered accounts: {count}", { count: a.users.length }) });
+  const section = sectionTitle(el, tr("People"), tr("Everyone signs in with their own account and sees only their own vaults. To add someone, send them an invitation."));
+  const invite = card(section, { icon: "mail", title: tr("Invite someone") });
+  let name = "";
+  const { input } = textField(invite.body, { name: tr("Who is it for"), desc: tr("Only for your list, e.g. “Alice”."), value: name, placeholder: tr("e.g. Alice"), onChange: (v) => { name = v; } });
+  const create = async () => {
+    if (!name.trim()) return void new Notice(tr("Enter a name"));
+    try {
+      const created = await x.createInvite(name.trim());
+      a.invites.unshift({ ...created, code: undefined });
+      ctx.refresh();
+      new InviteCodeModal(ctx.app, created.name, invitationMessage(created.name, ctx.plugin.settings.serverUrl, created.code ?? "")).open();
+    } catch (e) { new Notice(tr("Failed: {error}", { error: errorText(e) })); }
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) void create();
+  });
+  button(buttonRow(invite.body), { text: tr("Create invitation"), icon: "send", cta: true, busyText: tr("Creating..."), onClick: create });
+
+  const pending = a.invites.filter((i) => !i.used_at);
+  if (pending.length) {
+    section.createDiv({ cls: "obsi-ui-section-title", text: tr("Waiting for sign-up") });
+    const list = section.createDiv({ cls: "obsi-ui-list" });
+    for (const i of pending) new Setting(list).setName(i.name).setDesc(tr("Invited {time}. The code works once.", { time: relativeTime(i.created_at) }));
+  }
+
+  section.createDiv({ cls: "obsi-ui-section-title", text: tr("Accounts ({count})", { count: a.users.length }) });
   const users = section.createDiv({ cls: "obsi-ui-list", attr: { "aria-label": tr("User accounts") } });
   for (const user of a.users) {
     new Setting(users)
       .setName(user.username)
-      .setDesc(tr("Created {time} · {vaults} owned vaults · {tokens} issued tokens", {
+      .setDesc(tr("Joined {time} · vaults: {vaults} · devices and assistants: {tokens}", {
         time: relativeTime(user.created_at),
         vaults: user.vault_count,
         tokens: user.token_count,
       }));
   }
-  if (!a.users.length) users.createEl("p", { cls: "obsi-ui-muted", text: tr("No user accounts yet.") });
-
-  section.createDiv({ cls: "obsi-ui-section-title", text: tr("Invite a user") });
-  section.createDiv({ cls: "obsi-ui-section-desc", text: tr("Create a one-time code for someone who will sign in with their own account.") });
-  const head = section;
-  let name = "";
-  textField(head, { name: tr("Invitation name"), value: name, placeholder: tr("e.g. Alice"), onChange: (v) => { name = v; } });
-  button(buttonRow(head), { text: tr("Create invitation"), cta: true, onClick: async () => {
-    if (!name.trim()) return void new Notice(tr("Enter a name"));
-    try {
-      const invite = await x.createInvite(name.trim());
-      const code = invite.code ?? "";
-      a.invites.unshift({ ...invite, code: undefined });
-      ctx.refresh();
-      new InviteCodeModal(ctx.app, invite.name, code).open();
-    } catch (e) { new Notice(tr("Failed: {error}", { error: errorText(e) })); }
-  } });
-  const list = el.createDiv({ cls: "obsi-ui-list" });
-  for (const invite of a.invites) new Setting(list)
-    .setName(invite.name)
-    .setDesc(tr("Created {time} · {status}", { time: relativeTime(invite.created_at), status: invite.used_at ? tr("Used") : tr("Unused") }));
-  if (!a.invites.length) list.createEl("p", { cls: "obsi-ui-muted", text: tr("No invitations yet.") });
+  if (!a.users.length) users.createEl("p", { cls: "obsi-ui-muted", text: tr("No accounts yet. Send an invitation to the first person.") });
 };
 
+/** Ready to forward: the invitee pastes it whole into the setup window, which picks out the address and the code. */
+export const invitationMessage = (name: string, serverUrl: string, code: string) =>
+  [
+    tr("Obsi Sync invitation for {name}", { name }),
+    tr("Server: {url}", { url: serverUrl }),
+    tr("Code: {code}", { code }),
+    tr("In Obsidian: Obsi Sync → “I have an invitation”, paste this whole message. The code works once."),
+  ].join("\n");
+
 class InviteCodeModal extends Modal {
-  constructor(app: App, private inviteName: string, private code: string) { super(app); }
+  constructor(app: App, private inviteName: string, private message: string) { super(app); }
   onOpen() {
     this.modalEl.addClass("obsi-ui-dialog");
-    this.titleEl.setText(tr("Invitation code"));
-    this.contentEl.createEl("p", { text: tr("Share this code with {name}. It is shown only once.", { name: this.inviteName }) });
-    textField(this.contentEl, { name: tr("Invitation code"), value: this.code, onChange: () => {} });
-    button(buttonRow(this.contentEl), { text: tr("Copy"), onClick: async () => { await copyToClipboard(this.code, tr("Invitation code copied")); new Notice(tr("Invitation code copied")); } });
-    button(buttonRow(this.contentEl), { text: tr("Done"), cta: true, onClick: () => this.close() });
+    this.titleEl.setText(tr("Invitation for {name}", { name: this.inviteName }));
+    this.contentEl.createEl("p", { text: tr("Send this message to {name} in any messenger or email. It is shown only once.", { name: this.inviteName }) });
+    this.contentEl.createEl("pre", { cls: "obsi-ui-token" }).setText(this.message);
+    const row = this.contentEl.createDiv({ cls: "obsi-ui-dialog-buttons" });
+    button(row, { text: tr("Copy message"), icon: "copy", onClick: () => copyToClipboard(this.message, tr("Invitation copied")) });
+    button(row, { text: tr("Done"), cta: true, onClick: () => this.close() });
   }
   onClose() { this.contentEl.empty(); }
 }
@@ -374,8 +299,7 @@ class NewTokenModal extends Modal {
     app: App,
     private api: ObsiApi,
     private vaults: VaultInfo[],
-    private onCreated: () => Promise<void>,
-    private tokenScope: "admin" | "personal" = "admin"
+    private onCreated: () => Promise<void>
   ) {
     super(app);
   }
@@ -393,7 +317,7 @@ class NewTokenModal extends Modal {
     this.grants = {};
     if (this.kind === "admin") return;
     const ops = OPS[this.kind].map(([op]) => op);
-    for (const v of this.vaults) this.grants[v.id] = new Set(this.vaults.length === 1 ? ops.filter((op) => this.tokenScope === "admin" || this.kind !== "mcp" || op !== "write") : []);
+    for (const v of this.vaults) this.grants[v.id] = new Set(this.vaults.length === 1 ? ops : []);
   }
 
   private render() {
@@ -420,7 +344,7 @@ class NewTokenModal extends Modal {
       });
     kind("device", "smartphone", tr("Device"), tr("For Obsi Sync on a phone or computer."));
     kind("mcp", "sparkles", tr("AI assistant"), tr("For an MCP client: it sees only notes shared with AI."));
-    if (this.tokenScope === "admin") kind("admin", "shield", tr("Admin"), tr("Full control of the server. Keep it to yourself."));
+    kind("admin", "shield", tr("Admin"), tr("Full control of the server. Keep it to yourself."));
 
     if (this.kind !== "admin") {
       const ops = OPS[this.kind];
@@ -453,11 +377,8 @@ class NewTokenModal extends Modal {
         if (!this.name.trim()) return void new Notice(tr("Enter a name"));
         const grants: Record<string, string[]> = {};
         for (const [vid, set] of Object.entries(this.grants)) if (set.size) grants[vid] = [...set];
-        if (this.tokenScope === "personal" && !Object.keys(grants).length) return void new Notice(tr("Choose at least one vault permission."));
         try {
-          this.created = this.tokenScope === "personal"
-            ? await this.api.createOwnToken(this.name.trim(), this.kind as "device" | "mcp", grants)
-            : await this.api.createToken(this.name.trim(), this.kind, grants);
+          this.created = await this.api.createToken(this.name.trim(), this.kind, grants);
           await this.onCreated();
           this.render();
         } catch (e) {

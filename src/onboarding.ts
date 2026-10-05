@@ -31,6 +31,33 @@ export const connectProblem = (e: unknown): ConnectProblem => {
   return "unreachable";
 };
 
+/** The server rejects shorter account passwords; checked before the request for a quicker hint. */
+export const MIN_ACCOUNT_PASSWORD = 12;
+
+/**
+ * An invitation is forwarded as free text ("Server: https://…  Code: inv_…"); a bare code works too.
+ * Returns what could be found; the wizard fills the matching fields.
+ */
+export const parseInvitation = (text: string): { serverUrl?: string; code?: string } => {
+  const url = text.match(/https?:\/\/[^\s<>"'«»“”]+/i)?.[0].replace(/[.,;:!?)\]]+$/, "");
+  const code = text.match(/\binv_[A-Za-z0-9_-]+/)?.[0] ?? (/^\S+$/.test(text.trim()) && !url ? text.trim() : undefined);
+  return { serverUrl: url ? normalizeServerUrl(url) : undefined, code };
+};
+
+export type AccountProblem = "bad_credentials" | "bad_invite" | "username_taken" | "bad_username" | "weak_password";
+
+/** Account errors the user can fix in the form; anything else is a connection problem. */
+export const accountProblem = (e: unknown): AccountProblem | undefined => {
+  if (!(e instanceof ApiError)) return undefined;
+  return ({
+    invalid_credentials: "bad_credentials",
+    invalid_invite: "bad_invite",
+    username_taken: "username_taken",
+    invalid_username: "bad_username",
+    weak_password: "weak_password",
+  } as const)[e.code];
+};
+
 export type PasswordCheck = "empty_vault" | "match" | "mismatch";
 
 /** Checks an encryption password against what is already stored in a server vault. */

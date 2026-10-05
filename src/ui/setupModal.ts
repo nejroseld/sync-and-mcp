@@ -5,8 +5,8 @@ import { obsidianHttp } from "../api/httpObsidian";
 import { STARTER_RULES, STARTER_RULES_ALLOW } from "../ai/rules";
 import type { VaultInfo } from "../api/types";
 import { type DeviceAdder, parseDeviceAdder } from "../deviceAdder";
-import { checkVaultPassword, connectProblem, normalizeServerUrl } from "../onboarding";
-import { callout, choiceCard, choiceGroup, errorText, textField } from "./kit";
+import { MIN_ACCOUNT_PASSWORD, accountProblem, checkVaultPassword, connectProblem, normalizeServerUrl, parseInvitation } from "../onboarding";
+import { button, buttonRow, callout, choiceCard, choiceGroup, details, errorText, textField } from "./kit";
 import { isConfigured } from "../settings";
 import { FakeFsObsiServer } from "../sync/fsObsiServer";
 import { readDeviceAdderQr } from "./qrTransfer";
@@ -37,6 +37,9 @@ export class SetupModal extends Modal {
   private authMode: ServerAuthMode = "login";
   private username = "";
   private accountPassword = "";
+  private accountPasswordRepeat = "";
+  /** server + username of the session in `token`, so going back and forth signs in only once */
+  private signedInAs = "";
   private inviteCode = "";
   private meName = "";
   private hasUserAccount = false;
@@ -178,11 +181,22 @@ export class SetupModal extends Modal {
 
     el.createDiv({ cls: "obsi-sync-setup-section", text: tr("How do you want to start?") });
     const cards = el.createDiv({ cls: "obsi-ui-choices" });
+    const connect = (mode: ServerAuthMode) => {
+      this.authMode = mode;
+      this.go("server");
+    };
     choiceCard(cards, {
-      icon: "server",
-      title: tr("Connect to my server"),
-      desc: tr("I have a server address. I can sign in, create an account with an invitation, or use an existing token."),
-      onClick: () => this.go("server"),
+      icon: "mail",
+      title: tr("I have an invitation"),
+      desc: tr("The server admin sent you an invitation. Create your account with it."),
+      onClick: () => connect("register"),
+    });
+    choiceCard(cards, {
+      icon: "log-in",
+      title: tr("Sign in to my account"),
+      desc: tr("You already have an account on an Obsi server."),
+      // running setup again: the saved token already works, no need to type the password
+      onClick: () => connect(this.plugin.settings.deviceToken ? "token" : "login"),
     });
     choiceCard(cards, {
       icon: "smartphone",
@@ -198,61 +212,125 @@ export class SetupModal extends Modal {
   }
 
   private renderServer() {
-    this.header(tr("Connect to your server"), tr("Sign in with a username and password, create an account with an invitation, or use an existing access or device token."));
+    const mode = this.authMode;
+    const switchMode = (next: ServerAuthMode) => { this.authMode = next; this.render(); };
+    if (mode === "register") {
+      this.header(tr("Create your account"), tr("Paste the invitation you received: it has the server address and a one-time code. Then choose a username and an account password."));
+    } else if (mode === "login") {
+      this.header(tr("Sign in to your account"), tr("Use the username and password of your account on the Obsi server."));
+    } else {
+      this.header(tr("Connect with an access token"), tr("For a device or access token that the server admin gave you."));
+    }
     const form = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
-    const { input: urlInput } = textField(form, {
+    let urlInput!: HTMLInputElement;
+    let first: HTMLElement | undefined;
+    if (mode === "register") {
+      // a textarea keeps the line breaks of a pasted message, so the address and the code stay apart
+      const invitation = form.createEl("textarea", { cls: "obsi-sync-device-adder-text obsi-sync-invitation" });
+      invitation.rows = 3;
+      invitation.placeholder = tr("Paste the invitation or just the code (inv_...)");
+      invitation.setAttribute("aria-label", tr("Invitation"));
+      invitation.value = this.inviteCode;
+      const recognized = form.createDiv({ attr: { role: "status" } });
+      const read = () => {
+        recognized.empty();
+        const found = parseInvitation(invitation.value);
+        this.inviteCode = found.code ?? "";
+        if (found.serverUrl) {
+          this.serverUrl = found.serverUrl;
+          urlInput.value = found.serverUrl;
+        }
+        if (found.code) callout(recognized, "success", found.serverUrl
+          ? tr("Invitation recognized: server and code are filled in.")
+          : tr("Code recognized. Enter the server address below."));
+      };
+      invitation.addEventListener("input", read);
+      first = invitation;
+    }
+    urlInput = textField(form, {
       name: tr("Server address"),
       value: this.serverUrl,
       placeholder: "https://obsi.example.com",
       onChange: (v) => (this.serverUrl = v),
-    });
-    const modes = form.createDiv({ cls: "obsi-ui-choices" });
-    for (const [mode, label, desc] of [
-      ["login", tr("Log in"), tr("Use your account username and password.")],
-      ["register", tr("Create account"), tr("You need a one-time invitation code from the server admin.")],
-      ["token", tr("Use access token"), tr("For an existing access token or device token.")],
-    ] as const) {
-      choiceCard(modes, { icon: mode === "token" ? "key" : "user", title: label, desc, selected: this.authMode === mode, onClick: () => { this.authMode = mode; this.render(); } });
-    }
-    if (this.authMode === "token") {
+    }).input;
+    if (mode === "token") {
       textField(form, { name: tr("Access or device token"), value: this.token, secret: true, onChange: (v) => (this.token = v.trim()) });
     } else {
-      textField(form, { name: tr("Username"), value: this.username, onChange: (v) => (this.username = v.trim()) });
-      textField(form, { name: tr("Password"), value: this.accountPassword, secret: true, onChange: (v) => (this.accountPassword = v) });
-      if (this.authMode === "register") textField(form, { name: tr("Invitation code"), value: this.inviteCode, secret: true, onChange: (v) => (this.inviteCode = v.trim()) });
+      textField(form, {
+        name: tr("Username"),
+        desc: mode === "register" ? tr("3 to 64 characters. You will use it to sign in on your other devices.") : undefined,
+        value: this.username,
+        onChange: (v) => (this.username = v.trim()),
+      });
+      textField(form, {
+        name: tr("Account password"),
+        desc: mode === "register" ? tr("At least {n} characters. It is not the encryption password: you will choose that one later.", { n: MIN_ACCOUNT_PASSWORD }) : undefined,
+        value: this.accountPassword,
+        secret: true,
+        onChange: (v) => (this.accountPassword = v),
+      });
+      if (mode === "register") {
+        textField(form, { name: tr("Repeat account password"), value: this.accountPasswordRepeat, secret: true, onChange: (v) => (this.accountPasswordRepeat = v) });
+      }
     }
     const errorBox = this.contentEl.createDiv();
-    window.setTimeout(() => urlInput.focus(), 0);
+    const alt = this.contentEl.createDiv({ cls: "obsi-sync-setup-later" });
+    const altLink = (text: string, next: ServerAuthMode) => {
+      const link = alt.createEl("button", { cls: "obsi-sync-setup-link", text });
+      link.addEventListener("click", () => switchMode(next));
+    };
+    if (mode === "register") altLink(tr("I already have an account"), "login");
+    if (mode === "login") {
+      altLink(tr("Create an account with an invitation"), "register");
+      altLink(tr("Use an access token instead"), "token");
+    }
+    if (mode === "token") altLink(tr("Sign in with username and password"), "login");
+    window.setTimeout(() => (first ?? urlInput).focus(), 0);
 
     this.footer(() => this.go("welcome"), {
-      label: tr("Continue"),
+      label: mode === "register" ? tr("Create account") : tr("Continue"),
       busyLabel: tr("Connecting..."),
       run: async () => {
         errorBox.empty();
         const url = normalizeServerUrl(this.serverUrl);
+        if (mode === "register" && !this.inviteCode) return void callout(errorBox, "error", tr("Paste the invitation code."));
         if (!url) return void callout(errorBox, "error", tr("Enter the server address."));
         this.serverUrl = url;
         urlInput.value = url;
+        if (mode !== "token") {
+          if (!this.username || !this.accountPassword) return void callout(errorBox, "error", tr("Enter your username and password."));
+          if (mode === "register" && this.accountPassword.length < MIN_ACCOUNT_PASSWORD) {
+            return void callout(errorBox, "error", tr("The account password must be at least {n} characters.", { n: MIN_ACCOUNT_PASSWORD }));
+          }
+          if (mode === "register" && this.accountPassword !== this.accountPasswordRepeat) return void callout(errorBox, "error", tr("The passwords don't match."));
+        } else if (!this.token) return void callout(errorBox, "error", tr("Enter an access token."));
         try {
-          if (this.authMode !== "token") {
-            if (!this.username || !this.accountPassword) return void callout(errorBox, "error", tr("Enter your username and password."));
-            if (this.authMode === "register" && !this.inviteCode) return void callout(errorBox, "error", tr("Enter an invitation code."));
+          // Back and Continue again must not spend the invitation twice or open a new session every time
+          const account = `${url}\n${this.username}`;
+          if (mode !== "token" && this.signedInAs !== account) {
             const authApi = new ObsiApi(url, "", obsidianHttp);
-            const auth = this.authMode === "register"
+            const auth = mode === "register"
               ? await authApi.register(this.inviteCode, this.username, this.accountPassword)
               : await authApi.login(this.username, this.accountPassword);
             this.token = auth.token;
-            this.meName = auth.user.username;
-          } else if (!this.token) return void callout(errorBox, "error", tr("Enter an access token."));
+            this.signedInAs = account;
+          }
           const api = new ObsiApi(url, this.token, obsidianHttp);
           const me = await api.me();
           this.vaults = await api.listVaults();
-          this.hasUserAccount = !!me.user;
+          this.hasUserAccount = me.account_token === true;
           this.meName = me.user?.username ?? me.name;
           this.aiAvailable = await api.health().then((h) => h.features?.ai !== false, () => true);
         } catch (e) {
-          if (this.authMode !== "token" && typeof e === "object" && e !== null && "status" in e) {
-            callout(errorBox, "error", tr("Account sign-in failed: {error}", { error: errorText(e) }));
+          const account = accountProblem(e);
+          if (account) {
+            callout(errorBox, "error", {
+              bad_credentials: tr("Wrong username or password."),
+              bad_invite: tr("This invitation is not valid or was already used. Ask the server admin for a new one."),
+              username_taken: tr("This username is already taken. Choose another one, or sign in if the account is yours."),
+              bad_username: tr("The username must be 3 to 64 characters."),
+              weak_password: tr("The account password must be at least {n} characters.", { n: MIN_ACCOUNT_PASSWORD }),
+            }[account]);
             return;
           }
           const problem = connectProblem(e);
@@ -272,13 +350,14 @@ export class SetupModal extends Modal {
   }
 
   private renderVault() {
+    const noVaults = this.vaults.length === 0;
+    if (noVaults && this.hasUserAccount) return this.renderFirstVault();
     this.header(
       tr("Choose a server vault"),
       tr("Connected as “{name}”. This whole Obsidian vault will be kept in sync with the server vault you choose.", { name: this.meName })
     );
-    const noVaults = this.vaults.length === 0;
     if (noVaults) {
-      callout(this.contentEl, "warning", tr("This account has no vaults yet. Create one or ask the server admin for access."));
+      callout(this.contentEl, "warning", tr("This token has no access to any vault yet. Ask the server admin for access, or sign in to your account to create a vault."));
     } else {
       const group = choiceGroup(this.contentEl, tr("Server vault"));
       for (const v of this.vaults) {
@@ -305,18 +384,20 @@ export class SetupModal extends Modal {
     }
     if (this.hasUserAccount) {
       let name = "";
-      const row = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
-      textField(row, { name: tr("New vault name"), value: name, onChange: (v) => { name = v; } });
-      new ButtonComponent(row).setButtonText(tr("Create vault")).onClick(async () => {
-        if (!name.trim()) return void callout(row, "error", tr("Enter a name"));
+      const more = details(this.contentEl, tr("Create another server vault"));
+      textField(more, { name: tr("Vault name"), value: name, placeholder: tr("e.g. Work"), onChange: (v) => { name = v; } });
+      const errorBox = more.createDiv();
+      button(buttonRow(more), { text: tr("Create vault"), icon: "plus", busyText: tr("Creating..."), onClick: async () => {
+        errorBox.empty();
+        if (!name.trim()) return void callout(errorBox, "error", tr("Enter a name"));
         try {
           const vault = await this.api().createOwnedVault(name.trim());
           this.vaults.push(vault);
           this.vaultId = vault.id;
           this.vaultHasData = false;
           this.render();
-        } catch (e) { callout(row, "error", errorText(e)); }
-      });
+        } catch (e) { callout(errorBox, "error", errorText(e)); }
+      } });
     }
     this.footer(() => this.go("server"), {
       label: tr("Continue"),
@@ -331,6 +412,36 @@ export class SetupModal extends Modal {
           }
         }
         this.go("password");
+      },
+    });
+  }
+
+  /** A new account has nothing to choose from: name the first vault and go on. */
+  private renderFirstVault() {
+    this.header(
+      tr("Create your first server vault"),
+      tr("Signed in as “{name}”. A server vault keeps the encrypted copy of this Obsidian vault. You can add more vaults later.", { name: this.meName })
+    );
+    let name = this.app.vault.getName();
+    const form = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
+    const { input } = textField(form, { name: tr("Vault name"), desc: tr("Only you see it, in Obsi Sync and in AI assistants."), value: name, onChange: (v) => (name = v) });
+    window.setTimeout(() => input.select(), 0);
+    const errorBox = this.contentEl.createDiv();
+    this.footer(() => this.go("server"), {
+      label: tr("Create and continue"),
+      busyLabel: tr("Creating..."),
+      run: async () => {
+        errorBox.empty();
+        if (!name.trim()) return void callout(errorBox, "error", tr("Enter a name"));
+        try {
+          const vault = await this.api().createOwnedVault(name.trim());
+          this.vaults.push(vault);
+          this.vaultId = vault.id;
+          this.vaultHasData = false;
+          this.go("password");
+        } catch (e) {
+          callout(errorBox, "error", tr("Could not create the vault: {error}", { error: errorText(e) }));
+        }
       },
     });
   }
@@ -366,6 +477,12 @@ export class SetupModal extends Modal {
       tr("Keep this password safe. You will need it on every other device, and nobody, not even the server admin, can recover it."),
       "key"
     );
+    if (this.hasUserAccount) {
+      this.contentEl.createEl("p", {
+        cls: "obsi-sync-setup-note",
+        text: tr("This is not your account password. The account password lets you sign in; the encryption password never leaves your devices."),
+      });
+    }
     const errorBox = this.contentEl.createDiv();
 
     this.footer(() => this.go("vault"), {
@@ -570,7 +687,9 @@ export class SetupModal extends Modal {
         ? tr("AI can read all notes except those with “private” ticked.")
         : tr("AI can read only the notes allowed by the AI rules, for example with “ai” ticked."));
     }
-    tip("smartphone", tr("To add another device, open Settings → Obsi Sync → Devices and scan the QR code there."));
+    tip("smartphone", this.hasUserAccount
+      ? tr("To add another device, open Settings → Obsi Sync → Devices: each device gets its own QR code and can be disconnected separately.")
+      : tr("To add another device, open Settings → Obsi Sync → Devices and scan the QR code there."));
     this.footer(
       undefined,
       { label: tr("Start using"), run: () => this.close() },

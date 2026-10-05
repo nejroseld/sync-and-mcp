@@ -29,6 +29,7 @@ import {
   sectionTitle,
   selectField,
 } from "../kit";
+import { renderAssistants } from "./assistants";
 import type { SettingsContext } from "./context";
 
 type Choice = "off" | RulesPreset;
@@ -113,6 +114,8 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
 
   if (s.aiEnabled) renderPublishStatus(ctx, el);
   if (s.aiEnabled && (choice === "custom" || state.rulesEditorOpen) && state.rulesDraft) renderRulesEditor(ctx, el, state.rulesDraft);
+
+  if (s.aiEnabled || plugin.me?.account_token) renderAssistants(ctx, el);
 
   const adv = details(el, tr("Advanced"));
   selectField(adv, {

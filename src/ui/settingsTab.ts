@@ -44,6 +44,7 @@ export class ObsiSettingTab extends PluginSettingTab {
     this.cleanup();
     // secrets are never left on screen once the page is closed
     this.state.qrVisible = false;
+    this.state.newDevice = undefined;
     this.state.connectionEditing = false;
     // unsaved rule edits are dropped with the page
     this.state.rulesDraft = undefined;
@@ -69,6 +70,7 @@ export class ObsiSettingTab extends PluginSettingTab {
       go: (id) => {
         if (this.active !== id) {
           this.state.qrVisible = false;
+          this.state.newDevice = undefined;
           this.state.editingMount = undefined;
         }
         this.active = id;

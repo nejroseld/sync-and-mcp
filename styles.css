@@ -486,6 +486,7 @@ button.obsi-sync-nav-item:focus-visible { outline: 2px solid var(--interactive-a
   font-family: var(--font-monospace);
   font-size: var(--font-smaller);
 }
+.obsi-sync-device-adder-text.obsi-sync-invitation { min-height: 72px; }
 
 /* AI rules */
 .obsi-ui-rules {
@@ -554,6 +555,8 @@ button.obsi-sync-nav-item:focus-visible { outline: 2px solid var(--interactive-a
   user-select: all;
 }
 .obsi-sync-token-modal .obsi-ui-choices { margin-top: 8px; }
+pre.obsi-ui-token { white-space: pre-wrap; font-size: var(--font-smaller); }
+label.obsi-ui-grant-row { justify-content: flex-start; gap: 8px; cursor: pointer; }
 
 /* ---------- status bar ---------- */
 .obsi-sync-statusbar {
