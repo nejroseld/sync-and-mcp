@@ -71,7 +71,7 @@ const renderNotSetUp = (ctx: SettingsContext, el: HTMLElement) => {
   choiceCard(choices, {
     icon: "server",
     title: tr("Connect to my server"),
-    desc: tr("I have a server address and a device token."),
+    desc: tr("I have a server address and can sign in or use an access token."),
     onClick: () => ctx.plugin.openSetup(),
   });
   choiceCard(choices, {

@@ -10,6 +10,7 @@ export interface MeInfo {
   kind: TokenKind;
   grants: Record<string, string[]>;
   user?: { id: string; username: string };
+  account_token?: boolean;
 }
 
 export interface InviteInfo {
@@ -32,6 +33,7 @@ export interface VaultInfo {
   id: string;
   name: string;
   created_at: number;
+  owner_user_id?: string | null;
   rag?: { enabled: boolean; chunk_chars?: number; chunk_overlap?: number };
 }
 
@@ -45,6 +47,7 @@ export interface TokenInfo {
   last_used_at?: number | null;
   /** only on creation */
   token?: string;
+  is_session?: boolean;
 }
 
 export interface ServerFileObject {

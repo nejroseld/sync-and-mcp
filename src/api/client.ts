@@ -154,6 +154,15 @@ export class ObsiApi {
   async listTokens() {
     return (await this.json<{ tokens: TokenInfo[] }>("GET", "/admin/tokens")).tokens;
   }
+  async listOwnTokens() {
+    return (await this.json<{ tokens: TokenInfo[] }>("GET", "/tokens")).tokens;
+  }
+  createOwnToken(name: string, kind: "device" | "mcp", grants: Record<string, string[]>) {
+    return this.json<TokenInfo>("POST", "/tokens", { name, kind, grants });
+  }
+  revokeOwnToken(id: string) {
+    return this.json<TokenInfo>("POST", `/tokens/${encodeURIComponent(id)}/revoke`);
+  }
   createToken(name: string, kind: TokenKind, grants: Record<string, string[]>) {
     return this.json<TokenInfo>("POST", "/admin/tokens", { name, kind, grants });
   }

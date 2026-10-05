@@ -13,16 +13,19 @@
 `{"ok": true, "version": "0.1.0", "features": {"ai": true, "mcp": true, "rag": true}}`
 
 ### `GET /api/v1/me`
-Для access/device-токена: `{"token_id": "...", "name": "laptop", "kind": "device", "grants": {"v_xxx": ["read","write"]}}`. Для пользовательского токена дополнительно возвращается `user: {"id": "...", "username": "alice"}`.
+Для access/device-токена: `{"token_id": "...", "name": "laptop", "kind": "device", "grants": {"v_xxx": ["read","write"]}}`. Для пользовательского токена дополнительно возвращается `user: {"id": "...", "username": "alice"}` и `account_token: true` только для токена входа в аккаунт. Выданный пользователем токен имеет `account_token: false`.
 
 ### Учетные записи
 * `POST /api/v1/auth/register` `{"invite_code":"...","username":"alice","password":"..."}` → `{"token":"...","user":{"id":"...","username":"alice"}}`.
 * `POST /api/v1/auth/login` `{"username":"alice","password":"..."}` → такой же ответ. Пароль учетной записи не является паролем шифрования vault.
 * `POST /api/v1/vaults` `{"name":"Personal"}` (пользовательский токен) создаёт принадлежащий пользователю vault.
+* `GET /api/v1/tokens` (токен входа в аккаунт) → `{"tokens":[{id,name,kind,grants,created_at,revoked_at,last_used_at,is_session}]}`; показывает только свои токены. `is_session: true` у токенов входа, `false` у выданных токенов доступа.
+* `POST /api/v1/tokens` `{"name":"Claude","kind":"mcp"|"device","grants":{"v_xxx":["list","search","read"]}}` → объект токена с `token`, который показывается один раз. Можно выдавать права только на собственные vault'ы. Для `device` допустимы `read`,`write`; для `mcp` — `list`,`search`,`read`,`write`. Выпущенный токен работает только с указанными правами и не может создавать vault'ы или выпускать токены.
+* `POST /api/v1/tokens/{id}/revoke` отзывает свой токен. Чужие токены недоступны.
 
 ### `GET /api/v1/vaults`
-Vault'ы, на которые у токена есть хоть один грант (admin — все):
-`{"vaults": [{"id": "v_xxx", "name": "Personal", "created_at": 1730000000000, "rag": {"enabled": true}}]}`
+Vault'ы, на которые у токена есть хоть один грант (токен входа также видит собственные vault'ы, admin — все):
+`{"vaults": [{"id": "v_xxx", "name": "Personal", "owner_user_id": "u_xxx", "created_at": 1730000000000, "rag": {"enabled": true}}]}`. `owner_user_id` равен `null` для vault без владельца.
 
 ## Admin (kind=admin)
 

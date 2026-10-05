@@ -198,7 +198,7 @@ export default class ObsiSyncPlugin extends Plugin {
   }
 
   /** the welcome window; "import" starts on "copy setup from another device" */
-  openSetup(start?: "import") {
+  openSetup(start?: "import" | "server") {
     new SetupModal(this.app, this, start).open();
   }
 
@@ -242,6 +242,9 @@ export default class ObsiSyncPlugin extends Plugin {
   writableVaults(): Set<string> | undefined {
     if (!this.me) return undefined;
     const res = new Set<string>();
+    if (this.me.account_token && this.me.user) {
+      for (const vault of this.vaults) if (vault.owner_user_id === this.me.user.id) res.add(vault.id);
+    }
     for (const [vid, ops] of Object.entries(this.me.grants ?? {})) {
       if (ops.includes("write")) res.add(vid);
     }

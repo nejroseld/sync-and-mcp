@@ -32,7 +32,9 @@ export const renderDevices = (ctx: SettingsContext, el: HTMLElement) => {
 
   const c = card(el, { icon: "qr-code", title: tr("Setup QR code"), subtitle: tr("Contains secrets: show it only to your own devices.") });
   if (!state.qrVisible) {
-    callout(c.body, "warning", tr("The QR code and text include the device token and encryption passwords. Anyone who sees them can read and change your notes."));
+    callout(c.body, "warning", plugin.me?.account_token
+      ? tr("The QR code includes your account session token and encryption passwords. Anyone who sees it can read and change your notes and issue new access tokens.")
+      : tr("The QR code and text include the device token and encryption passwords. Anyone who sees them can read and change your notes."));
     button(buttonRow(c.body), {
       text: tr("Show QR code"),
       icon: "eye",
@@ -72,5 +74,5 @@ export const renderDevices = (ctx: SettingsContext, el: HTMLElement) => {
   text.value = payload;
   text.rows = 5;
 
-  callout(el, "info", tr("Both devices use the same device token. To revoke access for one device later, create a separate token for it on the Server tab."));
+  callout(el, "info", tr("Both devices use the same token. To revoke one device independently, sign in to your account and create a separate device token on the Server tab."));
 };

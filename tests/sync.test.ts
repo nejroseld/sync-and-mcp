@@ -431,6 +431,26 @@ describe("account authentication API", () => {
     expect(url).to.equal("http://srv/api/v1/admin/users");
     expect(authorization).to.equal("Bearer admin-token");
   });
+
+  it("creates, lists and revokes personal tokens with the account bearer", async () => {
+    const requests: Array<{ method: string; url: string; body?: string; authorization?: string }> = [];
+    const token = { id: "tok_1", name: "Claude", kind: "mcp", grants: { v_own: ["list", "search", "read"] }, token: "obsi_secret" };
+    const api = new ObsiApi("http://srv", "account-token", async (req) => {
+      requests.push({ method: req.method, url: req.url, body: req.body ? String(req.body) : undefined, authorization: req.headers?.Authorization });
+      const response = req.method === "GET" ? { tokens: [token] } : token;
+      return { status: 200, headers: {}, body: new TextEncoder().encode(JSON.stringify(response)).buffer as ArrayBuffer };
+    });
+    expect(await api.listOwnTokens()).to.deep.equal([token]);
+    expect(await api.createOwnToken("Claude", "mcp", { v_own: ["list", "search", "read"] })).to.deep.equal(token);
+    await api.revokeOwnToken("tok_1");
+    expect(requests.map((r) => [r.method, r.url])).to.deep.equal([
+      ["GET", "http://srv/api/v1/tokens"],
+      ["POST", "http://srv/api/v1/tokens"],
+      ["POST", "http://srv/api/v1/tokens/tok_1/revoke"],
+    ]);
+    expect(requests.every((r) => r.authorization === "Bearer account-token")).to.equal(true);
+    expect(JSON.parse(requests[1].body!)).to.deep.equal({ name: "Claude", kind: "mcp", grants: { v_own: ["list", "search", "read"] } });
+  });
 });
 
 describe("plugin's own data.json (per-device secrets)", () => {

@@ -17,6 +17,16 @@ export interface SettingsState {
   editingMount: number | undefined;
   connectionEditing: boolean;
   qrVisible: boolean;
+  personalTokens: {
+    loaded: boolean;
+    loading: boolean;
+    token: string;
+    username?: string;
+    userId?: string;
+    accountToken: boolean;
+    tokens: TokenInfo[];
+    error?: string;
+  };
   admin: {
     loaded: boolean;
     loading: boolean;
@@ -39,6 +49,7 @@ export const initialState = (): SettingsState => ({
   editingMount: undefined,
   connectionEditing: false,
   qrVisible: false,
+  personalTokens: { loaded: false, loading: false, token: "", accountToken: false, tokens: [] },
   admin: { loaded: false, loading: false, tokens: [], invites: [], users: [], embedding: { base_url: "", api_key: "", model: "" } },
   devClicks: 0,
   devUnlocked: false,

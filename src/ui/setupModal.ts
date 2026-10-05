@@ -58,13 +58,13 @@ export class SetupModal extends Modal {
   constructor(
     app: App,
     private plugin: ObsiSyncPlugin,
-    start?: "import"
+    start?: "import" | "server"
   ) {
     super(app);
     if (start) this.step = start;
     this.serverUrl = plugin.settings.serverUrl;
     this.token = plugin.settings.deviceToken;
-    if (this.token) this.authMode = "token";
+    if (this.token && start !== "server") this.authMode = "token";
     const root = plugin.settings.mounts.find((m) => m.path === "");
     if (root) {
       this.vaultId = root.vaultId;
