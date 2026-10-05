@@ -20,6 +20,14 @@ export interface InviteInfo {
   used_at: number | null;
 }
 
+export interface UserAccountInfo {
+  id: string;
+  username: string;
+  created_at: number;
+  vault_count: number;
+  token_count: number;
+}
+
 export interface VaultInfo {
   id: string;
   name: string;

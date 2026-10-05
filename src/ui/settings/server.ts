@@ -43,10 +43,11 @@ export const renderServer = (ctx: SettingsContext, el: HTMLElement) => {
     if (!x || a.loading) return;
     a.loading = true;
     try {
-      const [vaults, tokens, settings, invites] = await Promise.all([x.listVaults(), x.listTokens(), x.getAdminSettings(), x.listInvites()]);
+      const [vaults, tokens, settings, invites, users] = await Promise.all([x.listVaults(), x.listTokens(), x.getAdminSettings(), x.listInvites(), x.listUsers()]);
       plugin.vaults = vaults;
       a.tokens = tokens;
       a.invites = invites;
+      a.users = users;
       const emb = settings.embedding ?? {};
       a.embedding = { base_url: emb.base_url ?? "", api_key: emb.api_key ?? "", model: emb.model ?? "" };
       a.index = (settings as { index?: typeof a.index }).index;
@@ -92,14 +93,30 @@ export const renderServer = (ctx: SettingsContext, el: HTMLElement) => {
   const x = api()!;
 
   renderVaults(ctx, el, x);
-  renderInvites(ctx, el, x);
+  renderUserAccounts(ctx, el, x);
   renderTokens(ctx, el, x);
   renderEmbeddings(ctx, el, x);
 };
 
-const renderInvites = (ctx: SettingsContext, el: HTMLElement, x: ObsiApi) => {
+const renderUserAccounts = (ctx: SettingsContext, el: HTMLElement, x: ObsiApi) => {
   const a = ctx.state.admin;
-  const head = sectionTitle(el, tr("User invitations"), tr("Create a one-time code so a user can register and create their own vaults."));
+  const section = sectionTitle(el, tr("User accounts"), tr("People with accounts sign in using a username and password. Invite someone here; they create their account in the setup wizard."));
+  section.createEl("p", { cls: "obsi-ui-muted", text: tr("Registered accounts: {count}", { count: a.users.length }) });
+  const users = section.createDiv({ cls: "obsi-ui-list", attr: { "aria-label": tr("User accounts") } });
+  for (const user of a.users) {
+    new Setting(users)
+      .setName(user.username)
+      .setDesc(tr("Created {time} · {vaults} owned vaults · {tokens} issued tokens", {
+        time: relativeTime(user.created_at),
+        vaults: user.vault_count,
+        tokens: user.token_count,
+      }));
+  }
+  if (!a.users.length) users.createEl("p", { cls: "obsi-ui-muted", text: tr("No user accounts yet.") });
+
+  section.createDiv({ cls: "obsi-ui-section-title", text: tr("Invite a user") });
+  section.createDiv({ cls: "obsi-ui-section-desc", text: tr("Create a one-time code for someone who will sign in with their own account.") });
+  const head = section;
   let name = "";
   textField(head, { name: tr("Invitation name"), value: name, placeholder: tr("e.g. Alice"), onChange: (v) => { name = v; } });
   button(buttonRow(head), { text: tr("Create invitation"), cta: true, onClick: async () => {

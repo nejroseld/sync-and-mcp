@@ -34,7 +34,7 @@ export class SetupModal extends Modal {
   private step: Step = "welcome";
   private serverUrl: string;
   private token: string;
-  private authMode: ServerAuthMode = "token";
+  private authMode: ServerAuthMode = "login";
   private username = "";
   private accountPassword = "";
   private inviteCode = "";
@@ -64,6 +64,7 @@ export class SetupModal extends Modal {
     if (start) this.step = start;
     this.serverUrl = plugin.settings.serverUrl;
     this.token = plugin.settings.deviceToken;
+    if (this.token) this.authMode = "token";
     const root = plugin.settings.mounts.find((m) => m.path === "");
     if (root) {
       this.vaultId = root.vaultId;
@@ -180,7 +181,7 @@ export class SetupModal extends Modal {
     choiceCard(cards, {
       icon: "server",
       title: tr("Connect to my server"),
-      desc: tr("I have a server address and a device token."),
+      desc: tr("I have a server address. I can sign in, create an account with an invitation, or use an existing token."),
       onClick: () => this.go("server"),
     });
     choiceCard(cards, {
@@ -197,7 +198,7 @@ export class SetupModal extends Modal {
   }
 
   private renderServer() {
-    this.header(tr("Connect to your server"), tr("Use an account, an access token, or a device token supplied by your server administrator."));
+    this.header(tr("Connect to your server"), tr("Sign in with a username and password, create an account with an invitation, or use an existing access or device token."));
     const form = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
     const { input: urlInput } = textField(form, {
       name: tr("Server address"),
@@ -206,8 +207,12 @@ export class SetupModal extends Modal {
       onChange: (v) => (this.serverUrl = v),
     });
     const modes = form.createDiv({ cls: "obsi-ui-choices" });
-    for (const [mode, label] of [["login", tr("Log in")], ["register", tr("Create account")], ["token", tr("Use access token")]] as const) {
-      choiceCard(modes, { icon: mode === "token" ? "key" : "user", title: label, selected: this.authMode === mode, onClick: () => { this.authMode = mode; this.render(); } });
+    for (const [mode, label, desc] of [
+      ["login", tr("Log in"), tr("Use your account username and password.")],
+      ["register", tr("Create account"), tr("You need a one-time invitation code from the server admin.")],
+      ["token", tr("Use access token"), tr("For an existing access token or device token.")],
+    ] as const) {
+      choiceCard(modes, { icon: mode === "token" ? "key" : "user", title: label, desc, selected: this.authMode === mode, onClick: () => { this.authMode = mode; this.render(); } });
     }
     if (this.authMode === "token") {
       textField(form, { name: tr("Access or device token"), value: this.token, secret: true, onChange: (v) => (this.token = v.trim()) });

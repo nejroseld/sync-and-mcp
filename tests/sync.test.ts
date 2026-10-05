@@ -416,6 +416,21 @@ describe("account authentication API", () => {
     expect(result.token).to.equal("user-token");
     expect(result.user.username).to.equal("alice");
   });
+
+  it("lists account summaries through the admin users endpoint", async () => {
+    let url = "";
+    let authorization: string | undefined;
+    const users = [{ id: "u1", username: "alice", created_at: 1_700_000_000, vault_count: 2, token_count: 3 }];
+    const api = new ObsiApi("http://srv", "admin-token", async (req) => {
+      url = req.url;
+      authorization = req.headers?.Authorization;
+      return { status: 200, headers: {}, body: new TextEncoder().encode(JSON.stringify({ users })).buffer as ArrayBuffer };
+    });
+
+    expect(await api.listUsers()).to.deep.equal(users);
+    expect(url).to.equal("http://srv/api/v1/admin/users");
+    expect(authorization).to.equal("Bearer admin-token");
+  });
 });
 
 describe("plugin's own data.json (per-device secrets)", () => {

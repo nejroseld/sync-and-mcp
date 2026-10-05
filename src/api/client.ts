@@ -9,6 +9,7 @@ import type {
   ServerFileObject,
   TokenInfo,
   TokenKind,
+  UserAccountInfo,
   VaultInfo,
 } from "./types";
 
@@ -134,6 +135,9 @@ export class ObsiApi {
   }
   async listInvites() {
     return (await this.json<{ invites: InviteInfo[] }>("GET", "/admin/invites")).invites;
+  }
+  async listUsers() {
+    return (await this.json<{ users: UserAccountInfo[] }>("GET", "/admin/users")).users;
   }
   createInvite(name: string) {
     return this.json<InviteInfo>("POST", "/admin/invites", { name });
