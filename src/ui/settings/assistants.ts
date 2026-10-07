@@ -3,7 +3,7 @@ import type { ObsiApi } from "../../api/client";
 import type { TokenInfo, VaultInfo } from "../../api/types";
 import { t as tr } from "../../i18n";
 import { button, buttonRow, callout, choiceCard, choiceGroup, copyToClipboard, errorText, sectionTitle, textField } from "../kit";
-import { lastUsed, loadedAccount, ownedVaults, reloadTokens, tokenList, vaultNames } from "./account";
+import { lastUsed, loadedAccount, managesAccount, ownedVaults, reloadTokens, tokenList, vaultNames } from "./account";
 import type { SettingsContext } from "./context";
 
 /** MCP operations: reading is the safe default, edits arrive as suggestions the plugin applies. */
@@ -16,7 +16,7 @@ export const renderAssistants = (ctx: SettingsContext, el: HTMLElement) => {
   // the header holds only the title, description and button; everything else goes below it, full width
   const section = sectionTitle(el, tr("Assistants"), tr("Each assistant (Claude Desktop, Claude Code, Cursor...) gets its own access key, so you can disconnect one without touching the others."));
   if (!plugin.getApi()) return;
-  const plainToken = plugin.me !== undefined && !plugin.me.account_token;
+  const plainToken = plugin.me !== undefined && !managesAccount(plugin.me);
   const account = plainToken ? undefined : loadedAccount(ctx, el);
   if (plainToken || (account && !account.accountToken)) {
     callout(el, "info", tr("To connect an assistant, sign in to your account (Overview → Connection → Sign in)."));
@@ -36,12 +36,12 @@ export const renderAssistants = (ctx: SettingsContext, el: HTMLElement) => {
 
 /**
  * Opens the connect window directly, also from the Overview. The name and the vault of the whole
- * synced folder are filled in, so “Connect” alone is enough. Without an account session it shows the AI tab.
+ * synced folder are filled in, so “Connect” alone is enough. Without an account it shows the AI tab.
  */
 export const openConnectAssistant = async (ctx: SettingsContext) => {
   const { plugin } = ctx;
   const api = plugin.getApi();
-  if (!api || !plugin.me?.account_token) return ctx.go("ai");
+  if (!api || !managesAccount(plugin.me)) return ctx.go("ai");
   if (!plugin.vaults.length) {
     try {
       plugin.vaults = await api.listVaults();

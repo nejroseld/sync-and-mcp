@@ -1,10 +1,11 @@
-import { type App, ButtonComponent, Modal, Setting, setIcon } from "obsidian";
+import { type App, ButtonComponent, Modal, Platform, Setting, setIcon } from "obsidian";
 import { t as tr } from "../i18n";
 import { ObsiApi } from "../api/client";
 import { obsidianHttp } from "../api/httpObsidian";
 import { STARTER_RULES, STARTER_RULES_ALLOW } from "../ai/rules";
 import type { VaultInfo } from "../api/types";
 import { type DeviceAdder, parseDeviceAdder } from "../deviceAdder";
+import { deviceNameFromSystem } from "../deviceName";
 import { MIN_ACCOUNT_PASSWORD, accountProblem, checkVaultPassword, connectProblem, normalizeServerUrl, parseInvitation } from "../onboarding";
 import { button, buttonRow, callout, choiceCard, choiceGroup, details, errorText, textField } from "./kit";
 import { isConfigured } from "../settings";
@@ -318,7 +319,7 @@ export class SetupModal extends Modal {
           const api = new ObsiApi(url, this.token, obsidianHttp);
           const me = await api.me();
           this.vaults = await api.listVaults();
-          this.hasUserAccount = me.account_token === true;
+          this.hasUserAccount = me.kind === "device" && me.user != null;
           this.meName = me.user?.username ?? me.name;
           this.aiAvailable = await api.health().then((h) => h.features?.ai !== false, () => true);
         } catch (e) {
@@ -745,9 +746,31 @@ export class SetupModal extends Modal {
     s.syncReviewHold = wasConfigured;
     this.ai = "off"; // AI rules travel with the vault itself
     await this.plugin.saveSettings();
+    this.serverUrl = data.serverUrl;
+    this.token = data.deviceToken;
     this.plugin.me = undefined;
     this.plugin.vaults = [];
     await this.plugin.refreshMe();
+    if (data.provisionalDeviceName) {
+      const detected = deviceNameFromSystem({
+        ios: Platform.isIosApp,
+        android: Platform.isAndroidApp,
+        mac: Platform.isMacOS,
+        windows: Platform.isWin,
+        linux: Platform.isLinux,
+        mobile: Platform.isMobile,
+        userAgent: typeof navigator === "undefined" ? "" : navigator.userAgent,
+      });
+      if (detected) {
+        try {
+          await new ObsiApi(data.serverUrl, data.deviceToken, obsidianHttp).renameMe(detected);
+          await this.plugin.refreshMe();
+        } catch (e) {
+          // the random name from the QR still works; naming is not required to sync
+          console.debug("sync-and-mcp: could not rename this device", e);
+        }
+      }
+    }
     this.plugin.updateStatus();
     if (wasConfigured) {
       this.finish = "review";

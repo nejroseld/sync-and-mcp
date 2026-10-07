@@ -2,10 +2,11 @@ import { Modal } from "obsidian";
 import { ApiError } from "../../api/client";
 import { t as tr } from "../../i18n";
 import { createDeviceAdder } from "../../deviceAdder";
+import { randomDeviceName } from "../../deviceName";
 import { isConfigured } from "../../settings";
 import { deviceAdderQrUrl } from "../qrTransfer";
 import { button, buttonRow, callout, card, copyToClipboard, details, errorText, relativeTime, sectionTitle, textField } from "../kit";
-import { lastUsed, loadedAccount, reloadTokens, tokenList, vaultNames } from "./account";
+import { lastUsed, loadedAccount, managesAccount, reloadTokens, tokenList } from "./account";
 import type { SettingsContext } from "./context";
 
 export const renderDevices = (ctx: SettingsContext, el: HTMLElement) => {
@@ -19,21 +20,33 @@ export const renderDevices = (ctx: SettingsContext, el: HTMLElement) => {
     callout(el, "info", tr("Set up sync on this device first, then you can copy the setup to others."));
     return;
   }
-  // known without the network: a plain device token can only pass itself on
-  if (plugin.me && !plugin.me.account_token) return renderSharedSetup(ctx, el);
+  // A token with no account can only pass itself on. An account's device token issues a new one.
+  if (plugin.me && !managesAccount(plugin.me)) return renderSharedSetup(ctx, el);
   const account = loadedAccount(ctx, el);
   if (!account) return;
   if (account.accountToken) renderAccountDevices(ctx, el);
   else renderSharedSetup(ctx, el);
 };
 
-/** A new device token for every synced vault, packed with this device's setup into a QR payload. */
+/**
+ * A new device token for every synced vault, packed with this device's setup into a QR payload.
+ * An empty name gets a random placeholder; the new device replaces it when it can see its system or model.
+ */
 const addDevice = async (ctx: SettingsContext, name: string) => {
   const { plugin } = ctx;
+  const provisional = name.trim() === "";
+  const tokenName = provisional ? randomDeviceName() : name.trim();
   const grants: Record<string, string[]> = {};
   for (const m of plugin.settings.mounts) grants[m.vaultId] = ["read", "write"];
-  const created = await plugin.getApi()!.createOwnToken(name, "device", grants);
-  return { name: created.name, payload: createDeviceAdder({ ...plugin.settings, deviceToken: created.token ?? "" }) };
+  const created = await plugin.getApi()!.createOwnToken(tokenName, "device", grants);
+  return {
+    name: created.name,
+    provisional,
+    payload: createDeviceAdder(
+      { ...plugin.settings, deviceToken: created.token ?? "" },
+      { provisionalDeviceName: provisional }
+    ),
+  };
 };
 
 const addDeviceError = (e: unknown) =>
@@ -42,17 +55,17 @@ const addDeviceError = (e: unknown) =>
     : tr("Could not add the device: {error}", { error: errorText(e) });
 
 /**
- * The quick way from the Overview: a name is already filled in, so one click (or Enter) shows the QR code.
- * Without an account session only the shared setup exists, which lives on the Devices tab.
+ * The quick way from the Overview: the name can be left empty, so one click (or Enter) shows the QR code.
+ * A token with no account only has the shared setup, which lives on the Devices tab.
  */
 export const openAddDevice = (ctx: SettingsContext) => {
-  if (!ctx.plugin.me?.account_token) return ctx.go("devices");
+  if (!managesAccount(ctx.plugin.me)) return ctx.go("devices");
   new AddDeviceModal(ctx).open();
 };
 
 class AddDeviceModal extends Modal {
-  private name = tr("Phone");
-  private added: { name: string; payload: string } | undefined;
+  private name = "";
+  private added: { name: string; payload: string; provisional: boolean } | undefined;
 
   constructor(private ctx: SettingsContext) {
     super(ctx.app);
@@ -75,12 +88,21 @@ class AddDeviceModal extends Modal {
     if (this.added) {
       this.titleEl.setText(tr("QR code for “{name}”", { name: this.added.name }));
       callout(el, "info", tr("On the new device, choose “Copy setup from another device” in the welcome window and scan the code."));
+      if (this.added.provisional) {
+        callout(el, "info", tr("“{name}” is a temporary name. The new device replaces it with its system and model when it can.", { name: this.added.name }));
+      }
       renderQr(el, this.added.payload, () => this.close());
       callout(el, "warning", tr("The code keeps working until you disconnect “{name}” on the Devices tab. Scan it on one device only.", { name: this.added.name }));
       return;
     }
     this.titleEl.setText(tr("Add a device"));
-    const { input } = textField(el, { name: tr("Device name"), desc: tr("Helps you recognize it in the list of devices."), value: this.name, onChange: (v) => (this.name = v) });
+    const { input } = textField(el, {
+      name: tr("Device name"),
+      desc: tr("Optional. Leave it empty and the new device will name itself from its system and model."),
+      value: this.name,
+      placeholder: tr("e.g. Phone"),
+      onChange: (v) => (this.name = v),
+    });
     const errorBox = el.createDiv();
     const row = el.createDiv({ cls: "obsi-ui-dialog-buttons" });
     button(row, { text: tr("Cancel"), onClick: () => this.close() });
@@ -91,9 +113,8 @@ class AddDeviceModal extends Modal {
       busyText: tr("Creating..."),
       onClick: async () => {
         errorBox.empty();
-        if (!this.name.trim()) return void callout(errorBox, "error", tr("Enter a name"));
         try {
-          this.added = await addDevice(this.ctx, this.name.trim());
+          this.added = await addDevice(this.ctx, this.name);
           this.render();
           // the device list only matters on the Devices tab, which reloads it anyway
           void reloadTokens(this.ctx).catch(() => undefined);
@@ -120,7 +141,7 @@ const renderAccountDevices = (ctx: SettingsContext, el: HTMLElement) => {
   sectionTitle(el, tr("Add a device"));
   steps(el, [
     tr("Install Sync and MCP in Obsidian on the new device and open the vault you want to sync."),
-    tr("Here, name the new device and create its QR code."),
+    tr("Here, create its QR code. A name is optional."),
     tr("On the new device, choose “Copy setup from another device” in the welcome window and scan the code."),
   ]);
 
@@ -131,18 +152,26 @@ const renderAccountDevices = (ctx: SettingsContext, el: HTMLElement) => {
       state.newDevice = undefined;
       ctx.refresh();
     });
+    if (added.provisional) {
+      callout(c.body, "info", tr("“{name}” is a temporary name. The new device replaces it with its system and model when it can.", { name: added.name }));
+    }
     callout(c.body, "info", tr("The code keeps working until you disconnect “{name}” below. Scan it on one device only.", { name: added.name }));
   } else {
     const c = card(el, { icon: "smartphone", title: tr("New device") });
     let name = "";
-    const { input } = textField(c.body, { name: tr("Device name"), desc: tr("Helps you recognize it in the list below."), value: name, placeholder: tr("e.g. Phone"), onChange: (v) => (name = v) });
+    const { input } = textField(c.body, {
+      name: tr("Device name"),
+      desc: tr("Optional. Leave it empty and the new device will name itself from its system and model."),
+      value: name,
+      placeholder: tr("e.g. Phone"),
+      onChange: (v) => (name = v),
+    });
     callout(c.body, "warning", tr("The QR code includes a new device token and the encryption passwords of this vault. Show it only to your own device."));
     const errorBox = c.body.createDiv();
     const create = async () => {
       errorBox.empty();
-      if (!name.trim()) return void callout(errorBox, "error", tr("Enter a name"));
       try {
-        state.newDevice = await addDevice(ctx, name.trim());
+        state.newDevice = await addDevice(ctx, name);
         await reloadTokens(ctx);
       } catch (e) {
         callout(errorBox, "error", addDeviceError(e));
@@ -158,7 +187,7 @@ const renderAccountDevices = (ctx: SettingsContext, el: HTMLElement) => {
   tokenList(ctx, el, state.account.tokens.filter((t) => t.kind === "device"), {
     describe: (t) => t.is_session
       ? tr("Signed in {time} · {used}", { time: relativeTime(t.created_at), used: lastUsed(t) })
-      : tr("Added {time} · {vaults} · {used}", { time: relativeTime(t.created_at), vaults: vaultNames(ctx, t) || tr("no access"), used: lastUsed(t) }),
+      : tr("Added {time} · full account access · {used}", { time: relativeTime(t.created_at), used: lastUsed(t) }),
     empty: tr("No devices yet."),
   });
   el.createEl("p", { cls: "obsi-ui-muted", text: tr("A device that signs in with your username and password is listed as “Signed in with password”.") });

@@ -9,6 +9,11 @@ export interface DeviceAdder {
   serverUrl: string;
   deviceToken: string;
   mounts: MountConfig[];
+  /**
+   * The token name was generated here because the QR was created without a name.
+   * The new device should replace it with its system/model name when it can.
+   */
+  provisionalDeviceName?: boolean;
 }
 
 const validServerUrl = (value: unknown): value is string => {
@@ -49,7 +54,7 @@ const validateAdder = (data: DeviceAdder): void => {
 };
 
 /** Create a portable, versioned credential bundle for adding this vault on another device. */
-export const createDeviceAdder = (settings: ObsiSettings): string => {
+export const createDeviceAdder = (settings: ObsiSettings, opts?: { provisionalDeviceName?: boolean }): string => {
   const payload: DeviceAdder = {
     serverUrl: settings.serverUrl,
     deviceToken: settings.deviceToken,
@@ -62,7 +67,16 @@ export const createDeviceAdder = (settings: ObsiSettings): string => {
     })),
   };
   validateAdder(payload);
-  return JSON.stringify({ format: FORMAT, version: VERSION, ...payload }, null, 2);
+  return JSON.stringify(
+    {
+      format: FORMAT,
+      version: VERSION,
+      ...(opts?.provisionalDeviceName ? { provisionalDeviceName: true } : {}),
+      ...payload,
+    },
+    null,
+    2
+  );
 };
 
 /** Parse and validate a device-adder bundle. Unknown top-level settings are discarded. */
@@ -90,6 +104,7 @@ export const parseDeviceAdder = (text: string): DeviceAdder => {
     } as MountConfig;
   });
   const result = { serverUrl: value.serverUrl, deviceToken: value.deviceToken, mounts } as DeviceAdder;
+  if (value.provisionalDeviceName === true) result.provisionalDeviceName = true;
   validateAdder(result);
   return result;
 };

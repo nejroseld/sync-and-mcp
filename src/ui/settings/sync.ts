@@ -48,7 +48,7 @@ export const renderSync = (ctx: SettingsContext, el: HTMLElement) => {
   });
   selectField(el, {
     name: tr("Stop a sync that would change too much"),
-    desc: tr("Protects against mass deletion, e.g. after a wrong folder setup. Applies when there are 10 or more files."),
+    desc: tr("Protects against mass deletion, e.g. after a wrong folder setup. Applies when there are 10 or more files. Hidden files, including .obsi, are not counted."),
     options: [
       [-1, tr("Never stop")],
       [25, tr("More than 25% of files")],

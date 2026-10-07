@@ -47,10 +47,12 @@ export const runMountSync = async (p: RunMountParams): Promise<SyncResult> => {
   const local = new FakeFsSubtree(p.fsLocalWhole, mountPath, nested);
   const remote = new FakeFsObsiServer(p.api, p.vaultId);
   const enc = new FakeFsEncrypt(remote, p.password, p.method);
+  // The whole-vault mount always carries .obsi/ (AI rules and any other shared config).
+  const allowedHidden = new Set(p.settings.allowedHiddenDirs ?? []);
+  if (mountPath === "") allowedHidden.add(".obsi");
   const settings: SyncSettings = {
     ...p.settings,
-    // the root mount carries the shared .obsi/ai-rules.json
-    allowedHiddenDirs: p.settings.allowedHiddenDirs ?? (mountPath === "" ? [".obsi"] : []),
+    allowedHiddenDirs: [...allowedHidden],
     ignorePaths: [
       ...(p.settings.ignorePaths ?? []),
       ...ignorePatternsForNestedMounts(mountPath, p.allMountPaths),

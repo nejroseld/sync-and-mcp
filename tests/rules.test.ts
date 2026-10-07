@@ -266,6 +266,15 @@ describe("rules: registry and file format", () => {
     expect(parseRulesJson(serializeRules(p.config)).config).to.deep.equal(p.config);
   });
 
+  it("treats a rules file without enabled as AI access on, and keeps an explicit off", () => {
+    const on = parseRulesJson(JSON.stringify({ version: 1, mode: "deny_by_default", rules: [] }));
+    expect(on.errors).to.deep.equal([]);
+    expect(on.config.enabled).to.equal(true);
+    const off = parseRulesJson(JSON.stringify({ version: 1, mode: "deny_by_default", rules: [], enabled: false }));
+    expect(off.config.enabled).to.equal(false);
+    expect(parseRulesJson(serializeRules(off.config)).config.enabled).to.equal(false);
+  });
+
   it("reports malformed input", () => {
     expect(parseRulesJson("{nope").errors).to.have.length(1);
     const p = parseRulesJson(

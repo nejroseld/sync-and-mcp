@@ -2,7 +2,7 @@ import { Notice, Plugin, TFile } from "obsidian";
 import { ChangesApplier } from "./ai/applier";
 import { registerNewNoteProps } from "./ai/newNoteProps";
 import { AiPublisher } from "./ai/publisher";
-import { RULES_FILE_PATH } from "./ai/rules";
+import { RULES_FILE_PATH, rulesAccessEnabled } from "./ai/rules";
 import { RulesStore } from "./ai/rulesStore";
 import { ObsiApi } from "./api/client";
 import { obsidianHttp } from "./api/httpObsidian";
@@ -13,6 +13,7 @@ import { SyncManager } from "./syncManager";
 import { findOwningMount } from "./sync/mounts";
 import { SetupModal } from "./ui/setupModal";
 import { ObsiSettingTab } from "./ui/settingsTab";
+import { openMcpPreview } from "./ui/mcpPreview";
 import { StatusBar } from "./ui/statusBar";
 
 export default class ObsiSyncPlugin extends Plugin {
@@ -87,6 +88,15 @@ export default class ObsiSyncPlugin extends Plugin {
       },
     });
     this.addCommand({
+      id: "see-ai-edits",
+      name: t("See what AI wrote"),
+      checkCallback: (checking) => {
+        if (!isConfigured(this.settings)) return false;
+        if (!checking) openMcpPreview(this);
+        return true;
+      },
+    });
+    this.addCommand({
       id: "apply-changes",
       name: t("Apply pending MCP changes now"),
       callback: async () => {
@@ -124,7 +134,11 @@ export default class ObsiSyncPlugin extends Plugin {
           if (p === RULES_FILE_PATH) void this.rules.reload();
         })
       );
-      this.rules.onChange(poke);
+      this.rules.onChange(() => {
+        this.adoptSharedAiAccess();
+        poke();
+      });
+      void this.rules.load(true).then(() => this.adoptSharedAiAccess());
       registerNewNoteProps(this.app, this.rules, (ref) => this.registerEvent(ref));
 
       if (!this.settings.onboardingDone && !isConfigured(this.settings)) {
@@ -178,13 +192,26 @@ export default class ObsiSyncPlugin extends Plugin {
     }
     if (this.settings.changesPollMinutes > 0) {
       this.intervalIds.push(
-        window.setInterval(
-          () => void this.applier.runNow().catch(console.error),
-          this.settings.changesPollMinutes * 60_000
-        )
+        window.setInterval(() => {
+          // a backgrounded mobile app should not wake the radio for this
+          if (typeof document !== "undefined" && document.hidden) return;
+          void this.applier.runNow().catch(console.error);
+        }, this.settings.changesPollMinutes * 60_000)
       );
     }
     for (const id of this.intervalIds) this.registerInterval(id);
+  }
+
+  /** Copy the shared on/off switch out of `.obsi/ai-rules.json` into this device's settings. */
+  private adoptSharedAiAccess() {
+    const parsed = this.rules.peek();
+    if (!parsed || parsed.errors.length > 0) return;
+    const enabled = rulesAccessEnabled(parsed.config);
+    if (this.settings.aiEnabled === enabled) return;
+    this.settings.aiEnabled = enabled;
+    void this.saveSettings();
+    if (!enabled) this.publisher.stop();
+    this.settingTab?.noteRulesChanged();
   }
 
   private async afterSync() {
@@ -243,7 +270,7 @@ export default class ObsiSyncPlugin extends Plugin {
   writableVaults(): Set<string> | undefined {
     if (!this.me) return undefined;
     const res = new Set<string>();
-    if (this.me.account_token && this.me.user) {
+    if (this.me.kind === "device" && this.me.user) {
       for (const vault of this.vaults) if (vault.owner_user_id === this.me.user.id) res.add(vault.id);
     }
     for (const [vid, ops] of Object.entries(this.me.grants ?? {})) {

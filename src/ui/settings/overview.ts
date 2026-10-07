@@ -219,8 +219,8 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
     button(c.actions, { text: tr("Check"), busyText: tr("Checking..."), onClick: check });
     if (!state.connectionEditing) button(c.actions, { text: tr("Change"), onClick: () => { state.connectionEditing = true; ctx.refresh(); } });
   }
-  // with a plain device token, signing in unlocks own vaults, per-device QR codes and assistants
-  if (plugin.me && !plugin.me.account_token && !state.connectionEditing) {
+  // A token that belongs to an account already has that account's rights. One with no user does not.
+  if (plugin.me && !plugin.me.user && !state.connectionEditing) {
     const hint = c.body.createDiv({ cls: "obsi-ui-muted" });
     hint.setText(tr("Have an account on this server? Sign in to create vaults, add devices one by one and connect AI assistants."));
     button(buttonRow(c.body), { text: tr("Sign in"), icon: "log-in", onClick: () => plugin.openSetup("server") });

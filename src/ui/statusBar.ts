@@ -3,6 +3,7 @@ import { t as tr } from "../i18n";
 import { isConfigured } from "../settings";
 import type ObsiSyncPlugin from "../main";
 import { relativeTime } from "./kit";
+import { openMcpPreview } from "./mcpPreview";
 
 export type SyncState = "setup" | "paused" | "syncing" | "error" | "synced" | "idle";
 
@@ -92,6 +93,9 @@ export class StatusBar {
         .setTitle(p.settings.syncEnabled ? tr("Pause sync") : tr("Resume sync"))
         .setIcon(p.settings.syncEnabled ? "pause" : "play")
         .onClick(() => void p.setSyncEnabled(!p.settings.syncEnabled))
+    );
+    menu.addItem((i) =>
+      i.setTitle(tr("See what AI wrote")).setIcon("sparkles").onClick(() => openMcpPreview(p))
     );
     menu.addSeparator();
     if (syncState(p) === "error") {

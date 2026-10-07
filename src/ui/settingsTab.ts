@@ -35,6 +35,12 @@ export class ObsiSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  /** The shared rules file changed. Drop the cached copy and redraw the tabs that show it. */
+  noteRulesChanged() {
+    if (!this.state.rulesDirty) this.state.rulesDraft = undefined;
+    if ((this.active === "ai" || this.active === "overview") && this.containerEl.isConnected) this.display();
+  }
+
   /** section shown on the next display() */
   selectSection(id: string) {
     this.active = ALIASES[id] ?? (SECTIONS.some((s) => s.id === id) ? (id as SectionId) : "overview");

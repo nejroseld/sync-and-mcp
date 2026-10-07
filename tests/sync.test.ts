@@ -484,3 +484,63 @@ describe("plugin's own data.json (per-device secrets)", () => {
     expect(c.local.text(".obsidian/plugins/obsi-sync/data.json")).to.equal('{"deviceToken":"C"}');
   });
 });
+
+describe("safety check counts vault files, not hidden ones", () => {
+  const notes = () => {
+    const init: Record<string, string> = {};
+    for (let i = 0; i < 10; i++) init[`n${i}.md`] = "note";
+    for (let i = 0; i < 10; i++) init[`.obsi/extra${i}.json`] = "{}";
+    return init;
+  };
+  const settings: SyncSettings = { protectModifyPercentage: 50, allowedHiddenDirs: [".obsi"] };
+
+  const run = async (d: Device, remote: MemFs) => {
+    const enc = new FakeFsEncrypt(remote, PASSWORD, "rclone-base64");
+    return syncer(d.local, remote, enc, d.db, "manual", "v_test", ".obsidian", settings);
+  };
+
+  it("changing only dotfiles does not abort", async () => {
+    const remote = new MemFs("remote");
+    const a = device(notes());
+    const first = await run(a, remote);
+    expect(first.ok, String(first.error)).to.equal(true);
+    for (let i = 0; i < 10; i++) a.local.putRaw(`.obsi/extra${i}.json`, '{"v":2}', 9000);
+    const second = await run(a, remote);
+    expect(second.ok, String(second.error)).to.equal(true);
+  });
+
+  it("changing most vault notes still aborts, and the message ignores dotfiles", async () => {
+    const remote = new MemFs("remote");
+    const a = device(notes());
+    expect((await run(a, remote)).ok).to.equal(true);
+    for (let i = 0; i < 6; i++) a.local.putRaw(`n${i}.md`, "changed", 9000);
+    const res = await run(a, remote);
+    expect(res.ok).to.equal(false);
+    expect(res.error?.message).to.include("6 of 10");
+    expect(res.error?.message).to.not.include("6 of 20");
+  });
+});
+
+describe("root mount syncs .obsi by default", () => {
+  it("a second device receives .obsi without an explicit hidden-dir setting", async () => {
+    const server = new FakeServer(["v_root"]);
+    const api = new ObsiApi("http://srv", "tok", server.http);
+    const a = device({ "n.md": "n", ".obsi/ai-rules.json": '{"version":1}' });
+    const common = {
+      api,
+      allMountPaths: [""],
+      password: PASSWORD,
+      method: "rclone-base64" as const,
+      configDir: ".obsidian",
+      trigger: "manual" as const,
+      settings: { protectModifyPercentage: 50 },
+    };
+    const r1 = await runMountSync({ ...common, vaultId: "v_root", mountPath: "", fsLocalWhole: a.local, db: a.db });
+    expect(r1.ok, String(r1.error)).to.equal(true);
+    const b = device();
+    const r2 = await runMountSync({ ...common, vaultId: "v_root", mountPath: "", fsLocalWhole: b.local, db: b.db });
+    expect(r2.ok, String(r2.error)).to.equal(true);
+    expect(b.local.text(".obsi/ai-rules.json")).to.equal('{"version":1}');
+    expect(b.local.text("n.md")).to.equal("n");
+  });
+});

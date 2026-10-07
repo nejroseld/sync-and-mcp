@@ -14,7 +14,9 @@
  *  - RemotelySavePluginSettings replaced by SyncSettings; added allowedHiddenDirs
  *    (so ".obsi/" is synced although it is a dot-folder);
  *  - syncer() returns a SyncResult instead of calling notification callbacks;
- *  - safety percentage check only applies from PROTECT_MODIFY_MIN_FILES files.
+ *  - safety percentage check only applies from PROTECT_MODIFY_MIN_FILES files
+ *    and only counts vault files (hidden/dot paths such as .obsi are synced
+ *    but do not count, so they cannot trip the limit by themselves).
  */
 import PQueue from "p-queue";
 import XRegExp from "xregexp";
@@ -137,7 +139,8 @@ const isSkipItemByName = (
   }
   for (const d of allowedHiddenDirs) {
     // e.g. ".obsi": the folder itself and everything inside is synced
-    if (key === `${d}/` || key.startsWith(`${d}/`)) {
+    const dir = d.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+    if (dir !== "" && (key === dir || key === `${dir}/` || key.startsWith(`${dir}/`))) {
       return false;
     }
   }
@@ -854,8 +857,9 @@ const splitFourStepsOnEntityMappings = (
     }
 
     const val = mixedEntityMappings[key];
+    const vaultFile = countsAsVaultFile(key);
 
-    if (!key.endsWith("/")) {
+    if (vaultFile) {
       allFilesCount += 1;
     }
 
@@ -914,10 +918,11 @@ const splitFourStepsOnEntityMappings = (
       realTotalCount += 1;
 
       if (
+        vaultFile &&
         val.decision.includes("deleted") &&
         !val.decision.includes("folder")
       ) {
-        // only count files here, skip folder
+        // only count vault files here, skip folders and hidden files
         realModifyDeleteCount += 1;
       }
     } else if (
@@ -942,8 +947,8 @@ const splitFourStepsOnEntityMappings = (
       realTotalCount += 1;
 
       if (
-        val.decision.includes("modified") ||
-        val.decision.includes("conflict")
+        vaultFile &&
+        (val.decision.includes("modified") || val.decision.includes("conflict"))
       ) {
         realModifyDeleteCount += 1;
       }
@@ -994,9 +999,15 @@ const fullfillMTimeOfRemoteEntityInplace = (
 /**
  * Safety check (protectModifyPercentage) only makes sense with enough files;
  * with a handful of files a single edit would be "50%".
+ * Hidden paths (any segment starting with ".") are excluded: Obsidian does not
+ * show them in the vault, and counting them (".obsi", ".obsidian", ".trash", …)
+ * made the total larger than the vault and could abort a normal sync.
  * (obsi-mcp addition)
  */
 const PROTECT_MODIFY_MIN_FILES = 10;
+
+/** A file the user sees in the vault. Folders and dotfiles do not count. */
+const countsAsVaultFile = (key: string) => !key.endsWith("/") && !isHiddenPath(key, true, false);
 
 const dispatchOperationToActualV3 = async (
   key: string,
@@ -1141,7 +1152,7 @@ export const doActualSync = async (
       realModifyDeleteCount * 100 >=
       allFilesCount * protectModifyPercentage
     ) {
-      const errorStr = `Sync aborted by the safety check: ${realModifyDeleteCount} of ${allFilesCount} files would be modified or deleted (limit ${protectModifyPercentage}%). Raise the limit in settings if this is intended.`;
+      const errorStr = `Sync aborted by the safety check: ${realModifyDeleteCount} of ${allFilesCount} files would be modified or deleted (limit ${protectModifyPercentage}%). Hidden files are not counted. Raise the limit in settings if this is intended.`;
 
       throw Error(errorStr);
     }

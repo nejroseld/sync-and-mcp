@@ -26,6 +26,31 @@ export interface ApplyReport {
   errors: string[];
 }
 
+export interface PendingPreviewItem {
+  vaultId: string;
+  vaultName: string;
+  id: string;
+  path: string;
+  op: PendingChange["op"];
+  author?: string;
+  excerpt: string;
+}
+
+export interface PendingPreview {
+  skipped?: string;
+  items: PendingPreviewItem[];
+  errors: string[];
+}
+
+/** A short slice of the note text for the on-demand preview. Not a diff and not stored. */
+export const changeExcerpt = (content: string): string => {
+  const lines = content.split(/\r?\n/);
+  let text = lines.slice(0, 12).join("\n");
+  if (text.length > 600) text = `${text.slice(0, 600)}…`;
+  else if (lines.length > 12) text = `${text}\n…`;
+  return text;
+};
+
 const parseFm = (text: string | undefined): Record<string, unknown> | undefined => {
   if (text === undefined) return undefined;
   try {
@@ -40,6 +65,41 @@ const parseFm = (text: string | undefined): Record<string, unknown> | undefined 
 export class ChangesApplier {
   private running = false;
   constructor(private host: ApplierHost) {}
+
+  /**
+   * One read of the pending queue. No timer and no writes: the caller opens this
+   * when they want to see what an assistant wrote.
+   */
+  async listPending(): Promise<PendingPreview> {
+    const rep: PendingPreview = { items: [], errors: [] };
+    const api = this.host.getApi();
+    if (!api) {
+      rep.skipped = "server not configured";
+      return rep;
+    }
+    const mounts = this.host.settings.mounts.filter((m) => m.vaultId !== "");
+    for (const m of mounts) {
+      let changes: PendingChange[];
+      try {
+        changes = await api.pendingChanges(m.vaultId);
+      } catch (e) {
+        rep.errors.push(`${m.vaultName || m.vaultId}: ${e}`);
+        continue;
+      }
+      for (const c of changes) {
+        rep.items.push({
+          vaultId: m.vaultId,
+          vaultName: m.vaultName || m.path || m.vaultId,
+          id: c.id,
+          path: c.path,
+          op: c.op,
+          author: c.token_name,
+          excerpt: changeExcerpt(c.content),
+        });
+      }
+    }
+    return rep;
+  }
 
   async runNow(): Promise<ApplyReport> {
     const rep: ApplyReport = { applied: 0, conflicts: 0, rejected: 0, errors: [] };

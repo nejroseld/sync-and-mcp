@@ -12,6 +12,7 @@ import {
   rulesPreset,
 } from "../../ai/rules";
 import { t as tr } from "../../i18n";
+import { openMcpPreview } from "../mcpPreview";
 import { normalizeMountPath } from "../../sync/mounts";
 import {
   type Tone,
@@ -29,6 +30,7 @@ import {
   sectionTitle,
   selectField,
 } from "../kit";
+import { managesAccount } from "./account";
 import { renderAssistants } from "./assistants";
 import type { SettingsContext } from "./context";
 
@@ -62,7 +64,7 @@ const skippedText = (reason: string) => {
   if (reason.startsWith("no .obsi/ai-rules.json")) return tr("There are no AI rules yet. Choose what AI can read above.");
   if (reason.startsWith("rules file has errors")) return tr("The AI rules file has errors, so nothing is published: {details}", { details: reason.replace(/^rules file has errors: /, "") });
   if (reason.startsWith("server is not configured")) return tr("Connect to a server first.");
-  if (reason === "AI Available is disabled") return tr("AI access is off on this device.");
+  if (reason === "AI Available is disabled") return tr("AI access is off for this vault.");
   return reason;
 };
 
@@ -106,7 +108,7 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
   const group = choiceGroup(el, tr("What can AI read?"));
   const option = (value: Choice, icon: string, title: string, desc: string) =>
     choiceCard(group, { icon, title, desc, selected: shown === value, onClick: () => void choose(ctx, value) });
-  option("off", "lock", tr("Nothing"), tr("AI access is off on this device."));
+  option("off", "lock", tr("Nothing"), tr("AI access is off for this vault."));
   option("ticked", "check-square", tr("Only notes I mark"), tr("New notes get an “ai” checkbox. Tick it to share a note with AI."));
   option("all_but_private", "eye", tr("All notes except private ones"), tr("New notes get a “private” checkbox. Tick it to hide a note from AI."));
   option("custom", "sliders-horizontal", tr("Custom rules"), tr("Choose by folders and note properties."));
@@ -115,7 +117,7 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
   if (s.aiEnabled) renderPublishStatus(ctx, el);
   if (s.aiEnabled && (choice === "custom" || state.rulesEditorOpen) && state.rulesDraft) renderRulesEditor(ctx, el, state.rulesDraft);
 
-  if (s.aiEnabled || plugin.me?.account_token) renderAssistants(ctx, el);
+  if (s.aiEnabled || managesAccount(plugin.me)) renderAssistants(ctx, el);
 
   const adv = details(el, tr("Advanced"));
   selectField(adv, {
@@ -148,7 +150,7 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
   });
   selectField(adv, {
     name: tr("Check for edits from AI"),
-    desc: tr("Edits suggested by AI are applied to your notes after this check. They are also checked after every sync."),
+    desc: tr("Edits suggested by AI are applied to your notes after this check. They are also checked after every sync. The timer stays quiet while Obsidian is in the background. “See what AI wrote” looks once, only when you open it."),
     options: [
       [0, tr("Only after sync")],
       [1, tr("Every minute")],
@@ -189,13 +191,19 @@ const choose = async (ctx: SettingsContext, value: Choice) => {
     if (!s.aiEnabled) return;
     const r = await ask(ctx.app, {
       title: tr("Turn off AI access?"),
-      text: tr("This device stops sharing notes. Notes already shared stay on the server until you remove them."),
+      text: tr("Every device of this vault stops sharing notes after it syncs. Notes already shared stay on the server until you remove them."),
       actions: [
         { id: "remove", label: tr("Turn off and remove shared notes"), warning: true },
         { id: "off", label: tr("Turn off"), cta: true },
       ],
     });
     if (!r) return;
+    const existing = state.rulesDraft ?? plugin.rules.peek()?.config;
+    if (existing) {
+      const next = { ...existing, enabled: false };
+      await plugin.rules.save(next);
+      state.rulesDraft = structuredClone(next);
+    }
     s.aiEnabled = false;
     plugin.publisher.stop();
     state.rulesEditorOpen = false;
@@ -210,6 +218,7 @@ const choose = async (ctx: SettingsContext, value: Choice) => {
   if (value === "custom") {
     state.rulesEditorOpen = true;
     if (!existing) next = structuredClone(STARTER_RULES);
+    else if (existing.enabled === false) next = { ...existing, enabled: true };
   } else {
     const preset = value === "ticked" ? STARTER_RULES : STARTER_RULES_ALLOW;
     if (existing && rulesPreset(existing) !== value) {
@@ -222,10 +231,11 @@ const choose = async (ctx: SettingsContext, value: Choice) => {
       );
       if (!ok) return;
     }
-    if (!existing || rulesPreset(existing) !== value) next = structuredClone(preset);
+    if (!existing || rulesPreset(existing) !== value || existing.enabled === false) next = { ...structuredClone(preset), enabled: true };
     state.rulesEditorOpen = false;
   }
   if (next) {
+    next.enabled = true;
     await plugin.rules.save(next);
     state.rulesDraft = structuredClone(next);
     state.rulesErrors = [];
@@ -258,6 +268,11 @@ const renderPublishStatus = (ctx: SettingsContext, el: HTMLElement) => {
         await plugin.publisher.runNow();
         draw();
       },
+    });
+    button(c.actions, {
+      text: tr("See what AI wrote"),
+      icon: "eye",
+      onClick: () => openMcpPreview(plugin),
     });
     button(c.actions, {
       text: tr("Apply AI edits"),

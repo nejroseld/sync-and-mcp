@@ -3,7 +3,7 @@ import { t as tr } from "../../i18n";
 import { checkVaultPassword } from "../../onboarding";
 import { type MountConfig, exportMounts, parseMountsImport, validateMounts } from "../../settings";
 import { FakeFsObsiServer } from "../../sync/fsObsiServer";
-import { normalizeMountPath } from "../../sync/mounts";
+import { folderVaultName, normalizeMountPath } from "../../sync/mounts";
 import {
   type Tone,
   button,
@@ -141,6 +141,50 @@ export const renderFolders = (ctx: SettingsContext, el: HTMLElement) => {
     );
 };
 
+/** An empty server vault for this folder. Any token that belongs to an account can create one. */
+const renderCreateVault = (ctx: SettingsContext, form: HTMLElement, m: MountConfig) => {
+  const { plugin } = ctx;
+  if (!plugin.me) return;
+  if (!plugin.me.user) {
+    if (!m.vaultId) callout(form, "info", tr("Sign in on the Overview tab to create a server vault for this folder."));
+    return;
+  }
+  let vaultName = folderVaultName(m.path) || plugin.app.vault.getName() || tr("New vault");
+  const box = form.createDiv();
+  textField(box, {
+    name: tr("Create a server vault"),
+    desc: tr("Use this when the folder should be its own vault, instead of picking one that already exists. Then set the encryption password."),
+    value: vaultName,
+    placeholder: tr("New vault"),
+    onChange: (v) => (vaultName = v),
+  });
+  const errorBox = box.createDiv();
+  button(buttonRow(box), {
+    text: tr("Create vault"),
+    icon: "plus",
+    busyText: tr("Creating..."),
+    onClick: async () => {
+      errorBox.empty();
+      const name = vaultName.trim();
+      if (!name) return void callout(errorBox, "error", tr("Enter a name"));
+      const api = plugin.getApi();
+      if (!api) return void callout(errorBox, "error", tr("Server vaults are not loaded. Check the connection on the Overview tab."));
+      try {
+        const created = await api.createOwnedVault(name);
+        await plugin.refreshMe();
+        for (const id of [m.vaultId, created.id]) if (id) await plugin.syncManager.clearHistory(id);
+        m.vaultId = created.id;
+        m.vaultName = created.name;
+        await ctx.save();
+        new Notice(tr("Created vault “{name}”. Set its encryption password if you have not yet.", { name: created.name }));
+        ctx.refresh();
+      } catch (e) {
+        callout(errorBox, "error", tr("Could not create the vault: {error}", { error: errorText(e) }));
+      }
+    },
+  });
+};
+
 const renderMountEditor = (ctx: SettingsContext, body: HTMLElement, m: MountConfig, idx: number, listId: string) => {
   const { plugin } = ctx;
   const s = plugin.settings;
@@ -176,6 +220,7 @@ const renderMountEditor = (ctx: SettingsContext, body: HTMLElement, m: MountConf
       });
     })
     .setDesc(plugin.vaults.length ? "" : tr("Server vaults are not loaded. Check the connection on the Overview tab."));
+  renderCreateVault(ctx, form, m);
   const { setting: pw } = textField(form, {
     name: tr("Encryption password"),
     desc: tr("The same on every device of this server vault. Stored only on this device; a lost password cannot be recovered."),

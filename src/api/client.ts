@@ -122,6 +122,10 @@ export class ObsiApi {
   me() {
     return this.json<MeInfo>("GET", "/me");
   }
+  /** The current token renames itself. Used when a device QR was created without a name. */
+  renameMe(name: string) {
+    return this.json<MeInfo>("PATCH", "/me", { name });
+  }
   async listVaults() {
     return (await this.json<{ vaults: VaultInfo[] }>("GET", "/vaults")).vaults;
   }

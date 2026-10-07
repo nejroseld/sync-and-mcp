@@ -34,6 +34,11 @@ export interface RulesConfig {
   version: number;
   mode: AiMode;
   rules: RuleBase[];
+  /**
+   * False turns AI access off for every device of this vault.
+   * Missing on older files means on: the file was written by turning access on.
+   */
+  enabled?: boolean;
 }
 
 export interface MatchContext<R extends RuleBase = RuleBase> {
@@ -494,6 +499,9 @@ export const newNoteProperties = (config: RulesConfig): Record<string, boolean> 
 
 export const RULES_FILE_PATH = ".obsi/ai-rules.json";
 
+/** Shared on/off switch. A file that predates the field stays on. */
+export const rulesAccessEnabled = (config: RulesConfig) => config.enabled !== false;
+
 export interface ParsedRules {
   config: RulesConfig;
   errors: string[];
@@ -556,8 +564,8 @@ export const parseRulesJson = (text: string): ParsedRules => {
     }
     rules.push({ ...r, id });
   }
-  return { config: { version: 1, mode, rules }, errors };
+  return { config: { version: 1, mode, rules, enabled: raw?.enabled !== false }, errors };
 };
 
 export const serializeRules = (c: RulesConfig) =>
-  `${JSON.stringify({ version: c.version ?? 1, mode: c.mode, rules: c.rules }, null, 2)}\n`;
+  `${JSON.stringify({ version: c.version ?? 1, mode: c.mode, rules: c.rules, enabled: c.enabled !== false }, null, 2)}\n`;

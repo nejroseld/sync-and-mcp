@@ -31,7 +31,7 @@ export interface SettingsState {
     error?: string;
   };
   /** setup QR of a device just added; holds a live token, so it is dropped when the page closes */
-  newDevice: { name: string; payload: string } | undefined;
+  newDevice: { name: string; payload: string; provisional: boolean } | undefined;
   admin: {
     loaded: boolean;
     loading: boolean;

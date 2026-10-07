@@ -3,6 +3,7 @@ import { FakeFsSubtree } from "../src/sync/fsSubtree";
 import {
   findOwningMount,
   ignorePatternsForNestedMounts,
+  folderVaultName,
   nestedMountPrefixes,
   normalizeMountPath,
   toRelPath,
@@ -15,6 +16,12 @@ describe("mounts: path helpers", () => {
     expect(normalizeMountPath("/a/b/")).to.equal("a/b");
     expect(normalizeMountPath("/")).to.equal("");
     expect(normalizeMountPath("")).to.equal("");
+  });
+  it("names a server vault after the folder", () => {
+    expect(folderVaultName("Work/Client")).to.equal("Client");
+    expect(folderVaultName("/Work/")).to.equal("Work");
+    expect(folderVaultName("")).to.equal("");
+    expect(folderVaultName("/")).to.equal("");
   });
   it("nested prefixes: only strictly nested, shortest only", () => {
     const all = ["", "Work", "Work/Client", "Work/Client/Deep", "Personal"];

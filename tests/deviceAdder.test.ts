@@ -51,6 +51,14 @@ describe("device-adder payload", () => {
     reject((d) => (d.mounts[1].vaultId = "v1"));
   });
 
+  it("marks a QR created without a device name so the new device can rename itself", () => {
+    const text = createDeviceAdder(settings, { provisionalDeviceName: true });
+    const parsed = parseDeviceAdder(text);
+    expect(parsed.provisionalDeviceName).to.equal(true);
+    expect(parsed.deviceToken).to.equal("device-secret");
+    expect(parseDeviceAdder(createDeviceAdder(settings)).provisionalDeviceName).to.equal(undefined);
+  });
+
   it("refuses to create bundles from incomplete settings", () => {
     expect(() => createDeviceAdder({ ...settings, deviceToken: "" })).to.throw();
     expect(() => createDeviceAdder({ ...settings, mounts: [] })).to.throw();

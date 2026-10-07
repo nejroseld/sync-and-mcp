@@ -1,8 +1,12 @@
 import { Notice, Setting } from "obsidian";
-import type { TokenInfo } from "../../api/types";
+import type { MeInfo, TokenInfo } from "../../api/types";
 import { t as tr } from "../../i18n";
 import { button, buttonRow, callout, confirmAction, errorText, pill, relativeTime } from "../kit";
 import type { SettingsContext, SettingsState } from "./context";
+
+/** Password login and a device token of that account. A token with no user, or an MCP token, is not. */
+export const managesAccount = (me: Pick<MeInfo, "kind" | "user"> | undefined) =>
+  !!me && me.kind === "device" && me.user != null;
 
 /**
  * The account behind this device's token, loaded once per token. Renders the loading or error
@@ -32,7 +36,7 @@ const loadAccount = async (ctx: SettingsContext) => {
   acc.loading = true;
   try {
     const me = await api.me();
-    const accountToken = me.account_token === true;
+    const accountToken = managesAccount(me);
     const [tokens, vaults] = accountToken ? await Promise.all([api.listOwnTokens(), api.listVaults()]) : [[], undefined];
     plugin.me = me;
     if (vaults) plugin.vaults = vaults;

@@ -15,6 +15,12 @@ export const normalizeMountPath = (p: string) =>
     .replace(/\\/g, "/")
     .replace(/^\/+|\/+$/g, "");
 
+/** Last segment of a folder path, for naming a server vault created from that folder. "" for the vault root. */
+export const folderVaultName = (path: string): string => {
+  const parts = normalizeMountPath(path).split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+};
+
 /** true if `inner` is inside (or equal to) folder `outer` (both normalized, "" = root) */
 export const isPathInside = (inner: string, outer: string) =>
   outer === "" || inner === outer || inner.startsWith(`${outer}/`);
