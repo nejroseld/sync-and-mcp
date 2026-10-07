@@ -377,10 +377,12 @@ export class SetupModal extends Modal {
       const alt = this.contentEl.createDiv({ cls: "obsi-sync-setup-later" });
       alt.createSpan({ text: tr("Want to sync only some folders?") });
       const link = alt.createEl("button", { cls: "obsi-sync-setup-link", text: tr("Save the connection and choose folders in settings") });
-      link.addEventListener("click", async () => {
-        await this.saveConnection(false);
-        this.finish = "folders";
-        this.go("finish");
+      link.addEventListener("click", () => {
+        void (async () => {
+          await this.saveConnection(false);
+          this.finish = "folders";
+          this.go("finish");
+        })().catch((err) => console.error("sync-and-mcp:", err));
       });
     }
     if (this.hasUserAccount) {
@@ -573,20 +575,22 @@ export class SetupModal extends Modal {
       const input = scan.createEl("input", { type: "file", attr: { accept: "image/*" } });
       input.hidden = true;
       if (capture) input.setAttribute("capture", "environment");
-      input.addEventListener("change", async () => {
-        const file = input.files?.[0];
-        input.value = "";
-        if (!file) return;
-        status.empty();
-        callout(status, "info", tr("Reading QR image..."));
-        try {
-          this.deviceAdderText = await readDeviceAdderQr(file);
-          textArea.value = this.deviceAdderText;
-          validate();
-        } catch (e) {
+      input.addEventListener("change", () => {
+        void (async () => {
+          const file = input.files?.[0];
+          input.value = "";
+          if (!file) return;
           status.empty();
-          callout(status, "error", tr("Could not read QR: {error}", { error: errorText(e) }));
-        }
+          callout(status, "info", tr("Reading QR image..."));
+          try {
+            this.deviceAdderText = await readDeviceAdderQr(file);
+            textArea.value = this.deviceAdderText;
+            validate();
+          } catch (e) {
+            status.empty();
+            callout(status, "error", tr("Could not read QR: {error}", { error: errorText(e) }));
+          }
+        })().catch((err) => console.error("sync-and-mcp:", err));
       });
       const button = scan.createEl("button", { cls: "obsi-sync-setup-scan-button" });
       setIcon(button.createSpan(), icon);
@@ -759,7 +763,7 @@ export class SetupModal extends Modal {
         windows: Platform.isWin,
         linux: Platform.isLinux,
         mobile: Platform.isMobile,
-        userAgent: typeof navigator === "undefined" ? "" : navigator.userAgent,
+        tablet: Platform.isTablet,
       });
       if (detected) {
         try {

@@ -61,7 +61,7 @@ export interface RuleMatcher<R extends RuleBase = RuleBase> {
 // ---------------------------------------------------------------- registry
 
 export class RuleMatcherRegistry {
-  private m = new Map<string, RuleMatcher<any>>();
+  private m = new Map<string, RuleMatcher<RuleBase>>();
   register<R extends RuleBase>(matcher: RuleMatcher<R>) {
     this.m.set(matcher.type, matcher);
   }
@@ -469,9 +469,9 @@ export const rulesPreset = (config: RulesConfig): RulesPreset => {
   const same = (preset: RulesConfig) => {
     if (config.mode !== preset.mode || config.rules.length !== preset.rules.length) return false;
     return config.rules.every((r, i) => {
-      const p = preset.rules[i] as PropertyRule;
-      const x = r as PropertyRule;
-      return x.type === p.type && x.effect === p.effect && x.key === p.key && x.op === p.op && x.value === p.value;
+      const p = preset.rules[i];
+      if (p === undefined) return false;
+      return r.type === p.type && r.effect === p.effect && r.key === p.key && r.op === p.op && r.value === p.value;
     });
   };
   if (same(STARTER_RULES)) return "ticked";
@@ -529,42 +529,50 @@ export const validateRule = (r: RuleBase): string | undefined => {
  * Lenient parser (never throws). Malformed rules are dropped and reported in `errors`;
  * callers that publish data must treat any error as "do not publish" (fail closed).
  */
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** `JSON.parse` is typed as `any`; this only erases that so the value is checked below. */
+const parseJson = (text: string): unknown => JSON.parse(text) as unknown;
+
+const isEffect = (v: unknown): v is Effect => v === "include" || v === "exclude";
+
 export const parseRulesJson = (text: string): ParsedRules => {
   const errors: string[] = [];
-  let raw: any;
+  let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    raw = parseJson(text);
   } catch (e) {
     return { config: { ...DEFAULT_RULES, rules: [] }, errors: [`invalid JSON: ${e}`] };
   }
+  const rec = isRecord(raw) ? raw : undefined;
+  const modeValue = rec?.mode;
   const mode: AiMode =
-    raw?.mode === "allow_by_default" || raw?.mode === "deny_by_default"
-      ? raw.mode
+    modeValue === "allow_by_default" || modeValue === "deny_by_default"
+      ? modeValue
       : "deny_by_default";
-  if (raw?.mode !== mode) {
-    errors.push(`unknown mode ${JSON.stringify(raw?.mode)}, using deny_by_default`);
+  if (modeValue !== mode) {
+    errors.push(`unknown mode ${JSON.stringify(modeValue)}, using deny_by_default`);
   }
   const rules: RuleBase[] = [];
   const seen = new Set<string>();
-  for (const [i, r] of (Array.isArray(raw?.rules) ? raw.rules : []).entries()) {
-    if (
-      !r ||
-      typeof r.type !== "string" ||
-      (r.effect !== "include" && r.effect !== "exclude")
-    ) {
+  const list = rec !== undefined && Array.isArray(rec.rules) ? rec.rules : [];
+  for (const [i, item] of list.entries()) {
+    if (!isRecord(item) || typeof item.type !== "string" || !isEffect(item.effect)) {
       errors.push(`rule #${i} is malformed and was dropped`);
       continue;
     }
-    let id = typeof r.id === "string" && r.id !== "" ? r.id : `r${i + 1}`;
+    let id = typeof item.id === "string" && item.id !== "" ? item.id : `r${i + 1}`;
     while (seen.has(id)) id = `${id}_`;
     seen.add(id);
-    const bad = validateRule(r);
+    const rule: RuleBase = { ...item, id, type: item.type, effect: item.effect };
+    const bad = validateRule(rule);
     if (bad !== undefined) {
       errors.push(`rule ${id}: ${bad}`);
     }
-    rules.push({ ...r, id });
+    rules.push(rule);
   }
-  return { config: { version: 1, mode, rules, enabled: raw?.enabled !== false }, errors };
+  return { config: { version: 1, mode, rules, enabled: rec?.enabled !== false }, errors };
 };
 
 export const serializeRules = (c: RulesConfig) =>

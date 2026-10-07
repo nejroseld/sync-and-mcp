@@ -13,23 +13,28 @@ export const readDeviceAdderQr = async (file: File): Promise<string> => {
   if (!file.type.startsWith("image/")) throw new Error("Choose an image file");
   const objectUrl = URL.createObjectURL(file);
   try {
-    const photo = new Image();
-    await new Promise<void>((resolve, reject) => {
-      photo.onload = () => resolve();
-      photo.onerror = () => reject(new Error("Cannot open the image"));
-      photo.src = objectUrl;
-    });
-    const canvas = document.createElement("canvas");
-    const scale = Math.min(1, 2048 / Math.max(photo.naturalWidth, photo.naturalHeight));
-    canvas.width = Math.max(1, Math.round(photo.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(photo.naturalHeight * scale));
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) throw new Error("Cannot read the image");
-    context.drawImage(photo, 0, 0, canvas.width, canvas.height);
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-    const decoded = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: "attemptBoth" });
-    if (!decoded) throw new Error("No readable QR code found in the image");
-    return decoded.data;
+    const host = document.body.createDiv({ cls: "obsi-qr-decode", attr: { hidden: true } });
+    try {
+      const photo = new Image();
+      await new Promise<void>((resolve, reject) => {
+        photo.onload = () => resolve();
+        photo.onerror = () => reject(new Error("Cannot open the image"));
+        photo.src = objectUrl;
+      });
+      const canvas = host.createEl("canvas");
+      const scale = Math.min(1, 2048 / Math.max(photo.naturalWidth, photo.naturalHeight));
+      canvas.width = Math.max(1, Math.round(photo.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(photo.naturalHeight * scale));
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error("Cannot read the image");
+      context.drawImage(photo, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      const decoded = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: "attemptBoth" });
+      if (!decoded) throw new Error("No readable QR code found in the image");
+      return decoded.data;
+    } finally {
+      host.remove();
+    }
   } finally {
     URL.revokeObjectURL(objectUrl);
   }

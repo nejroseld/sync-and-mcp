@@ -4,7 +4,7 @@
  * the last Apache-2.0 version of the sync engine.
  * Copyright (c) fyears and Remotely Save contributors. Licensed under the Apache License, Version 2.0.
  *
- * Modified by obsi-mcp: none (verbatim copy).
+ * Modified by obsi-mcp: checkConnect callback and revokeAuth return typed without any.
  */
 
 import type { Entity } from "./baseTypes";
@@ -25,8 +25,8 @@ export abstract class FakeFs {
   abstract readFile(key: string): Promise<ArrayBuffer>;
   abstract rename(key1: string, key2: string, isMarkdown?: boolean): Promise<void>;
   abstract rm(key: string): Promise<void>;
-  abstract checkConnect(callbackFunc?: any): Promise<boolean>;
+  abstract checkConnect(callbackFunc?: unknown): Promise<boolean>;
   abstract getUserDisplayName(): Promise<string>;
-  abstract revokeAuth(): Promise<any>;
+  abstract revokeAuth(): Promise<void>;
   abstract allowEmptyFile(): boolean;
 }

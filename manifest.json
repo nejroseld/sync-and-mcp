@@ -2,7 +2,7 @@
   "id": "sync-and-mcp",
   "name": "Sync and MCP",
   "version": "0.1.0",
-  "minAppVersion": "1.4.0",
+  "minAppVersion": "1.4.4",
   "description": "End-to-end encrypted sync of your vaults through a self-hosted server, plus an MCP endpoint that lets AI assistants read, search and suggest edits to the notes you allow.",
   "author": "nejroseld",
   "authorUrl": "https://github.com/nejroseld",

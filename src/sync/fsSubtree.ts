@@ -118,7 +118,7 @@ export class FakeFsSubtree extends FakeFs {
     return await this.inner.rm(this.guard(key));
   }
 
-  async checkConnect(callbackFunc?: any): Promise<boolean> {
+  async checkConnect(callbackFunc?: unknown): Promise<boolean> {
     return await this.inner.checkConnect(callbackFunc);
   }
 
@@ -126,7 +126,7 @@ export class FakeFsSubtree extends FakeFs {
     return await this.inner.getUserDisplayName();
   }
 
-  async revokeAuth(): Promise<any> {
+  async revokeAuth(): Promise<void> {
     return await this.inner.revokeAuth();
   }
 

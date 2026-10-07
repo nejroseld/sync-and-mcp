@@ -25,7 +25,7 @@ AI access is off by default. Nothing is published until you turn it on and pick 
 
 ## Requirements
 
-- Obsidian 1.4.0 or later.
+- Obsidian 1.4.4 or later.
 - A running [sync-and-mcp-backend](https://github.com/nejroseld/sync-and-mcp-backend) server, either your own or one where an administrator has invited you.
 
 ## Installation

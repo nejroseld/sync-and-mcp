@@ -79,24 +79,48 @@ export const isConfigured = (s: ObsiSettings): boolean =>
   s.deviceToken.trim() !== "" &&
   s.mounts.some((m) => m.vaultId !== "" && m.password !== "" && m.encryptionMethod === "rclone-base64");
 
-export const normalizeSettings = (raw: any): ObsiSettings => {
-  const s: ObsiSettings = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
-  s.syncOnSave = typeof raw?.syncOnSave === "boolean" ? raw.syncOnSave : DEFAULT_SETTINGS.syncOnSave;
-  s.mounts = (Array.isArray(s.mounts) ? s.mounts : []).map((m: any) => ({
-    path: normalizeMountPath(String(m.path ?? "")),
-    vaultId: String(m.vaultId ?? ""),
-    vaultName: m.vaultName,
-    password: String(m.password ?? ""),
-    encryptionMethod:
-      m.encryptionMethod == null || m.encryptionMethod === "rclone-base64"
-        ? "rclone-base64"
-        : "unknown",
-  }));
+/** Null is excluded; arrays are objects and were already read for path/vaultId. */
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
+
+const savedString = (value: unknown, fallback = ""): string =>
+  value == null ? fallback : String(value);
+
+const encryptionOf = (value: unknown): MountConfig["encryptionMethod"] =>
+  value == null || value === "rclone-base64" ? "rclone-base64" : "unknown";
+
+/** Saved `vaultName` is copied as stored. The field is typed `string`, which cannot name every JSON value. */
+const vaultNameOf = (value: unknown): string | undefined =>
+  typeof value === "string" || value === undefined ? value : (value as string);
+
+const mountFields = (m: unknown): Record<string, unknown> => {
+  if (m == null) {
+    throw new TypeError(`Cannot read properties of ${m === null ? "null" : "undefined"} (reading 'path')`);
+  }
+  return isObject(m) ? m : {};
+};
+
+const mountFromSaved = (m: unknown): MountConfig => {
+  const mount = mountFields(m);
+  return {
+    path: normalizeMountPath(savedString(mount.path)),
+    vaultId: savedString(mount.vaultId),
+    vaultName: vaultNameOf(mount.vaultName),
+    password: savedString(mount.password),
+    encryptionMethod: encryptionOf(mount.encryptionMethod),
+  };
+};
+
+export const normalizeSettings = (raw: unknown): ObsiSettings => {
+  const source = isObject(raw) ? raw : {};
+  const s: ObsiSettings = { ...DEFAULT_SETTINGS, ...source };
+  s.syncOnSave = typeof source.syncOnSave === "boolean" ? source.syncOnSave : DEFAULT_SETTINGS.syncOnSave;
+  s.mounts = (Array.isArray(source.mounts) ? source.mounts : []).map((m) => mountFromSaved(m));
   if (s.conflictAction !== "keep_larger") s.conflictAction = "keep_newer";
   // installs configured before the welcome window existed should not see it
-  if (raw?.onboardingDone === undefined && isConfigured(s)) s.onboardingDone = true;
-  s.syncReviewHold = raw?.syncReviewHold === true;
-  s.aiPrivateHoldMinutes = normalizePrivateHoldMinutes(raw?.aiPrivateHoldMinutes);
+  if (source.onboardingDone === undefined && isConfigured(s)) s.onboardingDone = true;
+  s.syncReviewHold = source.syncReviewHold === true;
+  s.aiPrivateHoldMinutes = normalizePrivateHoldMinutes(source.aiPrivateHoldMinutes);
   return s;
 };
 
@@ -133,26 +157,24 @@ export const exportMounts = (s: ObsiSettings): string =>
 export const parseMountsImport = (
   text: string
 ): { serverUrl?: string; mounts: MountConfig[] } => {
-  const j = JSON.parse(text);
-  if (j?.format !== EXPORT_MARK || !Array.isArray(j.mounts)) {
+  // `JSON.parse` is typed as `any`; this only erases that so the value is checked below.
+  const j = JSON.parse(text) as unknown;
+  if (!isObject(j) || j.format !== EXPORT_MARK || !Array.isArray(j.mounts)) {
     throw Error("not an obsi-sync mounts export");
   }
   return {
     serverUrl: typeof j.serverUrl === "string" ? j.serverUrl : undefined,
-    mounts: j.mounts.map((m: any) => {
-      if (typeof m?.vaultId !== "string" || m.vaultId === "") {
+    mounts: j.mounts.map((m) => {
+      if (!isObject(m) || typeof m.vaultId !== "string" || m.vaultId === "") {
         throw Error("mount without vaultId");
       }
       return {
-        path: normalizeMountPath(String(m.path ?? "")),
+        path: normalizeMountPath(savedString(m.path)),
         vaultId: m.vaultId,
-        vaultName: m.vaultName,
+        vaultName: vaultNameOf(m.vaultName),
         password: "",
-        encryptionMethod:
-          m.encryptionMethod == null || m.encryptionMethod === "rclone-base64"
-            ? "rclone-base64"
-            : "unknown",
-      } as MountConfig;
+        encryptionMethod: encryptionOf(m.encryptionMethod),
+      };
     }),
   };
 };

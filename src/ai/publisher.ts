@@ -15,6 +15,12 @@ import { computeAllowedPaths, decisionHoldRemainingMs, defaultRegistry, evaluate
 import type { RulesStore } from "./rulesStore";
 import { takeSnapshot } from "./vaultSnapshot";
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** `parseYaml` is typed as `any`; this only erases that so the result is checked below. */
+const readYaml = (text: string): unknown => parseYaml(text) as unknown;
+
 export interface PublisherHost {
   app: App;
   settings: ObsiSettings;
@@ -113,7 +119,7 @@ export class AiPublisher {
 
     for (const m of mounts) {
       if (writable !== undefined && !writable.has(m.vaultId)) continue;
-      const row = { vaultId: m.vaultId, put: 0, deleted: 0, stale: 0 } as PublishReport["perVault"][number];
+      const row: PublishReport["perVault"][number] = { vaultId: m.vaultId, put: 0, deleted: 0, stale: 0 };
       report.perVault.push(row);
       try {
         const desired: DesiredFile[] = [];
@@ -201,9 +207,9 @@ export class AiPublisher {
     let fm: Record<string, unknown> | undefined;
     if (raw !== undefined) {
       try {
-        const v = parseYaml(raw);
-        if (!v || typeof v !== "object" || Array.isArray(v)) return false;
-        fm = v as Record<string, unknown>;
+        const v = readYaml(raw);
+        if (!isRecord(v)) return false;
+        fm = v;
       } catch {
         return false;
       }

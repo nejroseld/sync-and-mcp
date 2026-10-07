@@ -26,16 +26,21 @@ const validServerUrl = (value: unknown): value is string => {
   }
 };
 
-const validateAdder = (data: DeviceAdder): void => {
-  if (!validServerUrl(data.serverUrl)) throw new Error("invalid device-adder serverUrl");
-  if (typeof data.deviceToken !== "string" || data.deviceToken.trim() === "") {
-    throw new Error("device-adder requires a deviceToken");
-  }
-  if (!Array.isArray(data.mounts) || data.mounts.length === 0) {
-    throw new Error("device-adder requires at least one mount");
-  }
-  for (const mount of data.mounts) {
-    if (!mount || typeof mount.path !== "string") throw new Error("mount path must be a string");
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+interface LooseMount {
+  path: unknown;
+  vaultId: unknown;
+  vaultName?: unknown;
+  password: unknown;
+  encryptionMethod: unknown;
+}
+
+const checkedMounts = (mounts: readonly LooseMount[]): MountConfig[] => {
+  if (mounts.length === 0) throw new Error("device-adder requires at least one mount");
+  return mounts.map((mount) => {
+    if (typeof mount.path !== "string") throw new Error("mount path must be a string");
     if (typeof mount.vaultId !== "string" || mount.vaultId.trim() === "") {
       throw new Error("mount requires a vaultId");
     }
@@ -48,8 +53,23 @@ const validateAdder = (data: DeviceAdder): void => {
     if (mount.encryptionMethod !== "rclone-base64") {
       throw new Error("mount uses an unsupported encryption method");
     }
+    return {
+      path: mount.path,
+      vaultId: mount.vaultId,
+      vaultName: typeof mount.vaultName === "string" ? mount.vaultName : undefined,
+      password: mount.password,
+      encryptionMethod: "rclone-base64",
+    };
+  });
+};
+
+const validateAdder = (data: DeviceAdder): void => {
+  if (!validServerUrl(data.serverUrl)) throw new Error("invalid device-adder serverUrl");
+  if (typeof data.deviceToken !== "string" || data.deviceToken.trim() === "") {
+    throw new Error("device-adder requires a deviceToken");
   }
-  const problems = validateMounts(data.mounts);
+  const mounts = checkedMounts(data.mounts);
+  const problems = validateMounts(mounts);
   if (problems.length) throw new Error(problems.join("; "));
 };
 
@@ -81,30 +101,37 @@ export const createDeviceAdder = (settings: ObsiSettings, opts?: { provisionalDe
 
 /** Parse and validate a device-adder bundle. Unknown top-level settings are discarded. */
 export const parseDeviceAdder = (text: string): DeviceAdder => {
-  let value: any;
+  let value: unknown;
   try {
-    value = JSON.parse(text);
+    // `JSON.parse` is typed as `any`; this only erases that so the value is checked below.
+    value = JSON.parse(text) as unknown;
   } catch {
     throw new Error("invalid device-adder JSON");
   }
-  if (value?.format !== FORMAT || value?.version !== VERSION) {
+  if (!isRecord(value) || value.format !== FORMAT || value.version !== VERSION) {
     throw new Error("unsupported device-adder format or version");
   }
   if (!Array.isArray(value.mounts)) throw new Error("device-adder mounts must be an array");
-  const mounts: MountConfig[] = value.mounts.map((mount: any) => {
-    if (!mount || typeof mount !== "object" || Array.isArray(mount)) {
-      throw new Error("invalid device-adder mount");
-    }
+  const loose: LooseMount[] = value.mounts.map((mount) => {
+    if (!isRecord(mount)) throw new Error("invalid device-adder mount");
     return {
       path: typeof mount.path === "string" ? normalizeMountPath(mount.path) : mount.path,
       vaultId: mount.vaultId,
       vaultName: mount.vaultName,
       password: mount.password,
       encryptionMethod: mount.encryptionMethod,
-    } as MountConfig;
+    };
   });
-  const result = { serverUrl: value.serverUrl, deviceToken: value.deviceToken, mounts } as DeviceAdder;
+  const serverUrl = value.serverUrl;
+  const deviceToken = value.deviceToken;
+  if (!validServerUrl(serverUrl)) throw new Error("invalid device-adder serverUrl");
+  if (typeof deviceToken !== "string" || deviceToken.trim() === "") {
+    throw new Error("device-adder requires a deviceToken");
+  }
+  const mounts = checkedMounts(loose);
+  const result: DeviceAdder = { serverUrl, deviceToken, mounts };
   if (value.provisionalDeviceName === true) result.provisionalDeviceName = true;
-  validateAdder(result);
+  const problems = validateMounts(mounts);
+  if (problems.length) throw new Error(problems.join("; "));
   return result;
 };

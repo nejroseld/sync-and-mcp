@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile } from "obsidian";
+import { Notice, Plugin, TFile, type EventRef } from "obsidian";
 import { ChangesApplier } from "./ai/applier";
 import { registerNewNoteProps } from "./ai/newNoteProps";
 import { AiPublisher } from "./ai/publisher";
@@ -128,9 +128,13 @@ export default class ObsiSyncPlugin extends Plugin {
       }));
       this.registerEvent(this.app.vault.on("delete", poke));
       this.registerEvent(this.app.vault.on("rename", poke));
-      this.registerEvent(this.app.metadataCache.on("changed", (f: TFile) => poke()));
+      this.registerEvent(this.app.metadataCache.on("changed", () => poke()));
+      // Public Vault typings omit the internal "raw" event; its payload is the changed path.
+      const vaultWithRaw = this.app.vault as typeof this.app.vault & {
+        on(name: "raw", callback: (path: string) => void): EventRef;
+      };
       this.registerEvent(
-        this.app.vault.on("raw" as any, (p: any) => {
+        vaultWithRaw.on("raw", (p) => {
           if (p === RULES_FILE_PATH) void this.rules.reload();
         })
       );
@@ -233,7 +237,10 @@ export default class ObsiSyncPlugin extends Plugin {
   /** opens this plugin's settings, optionally on a given section (e.g. "mounts") */
   openSettings(section?: string) {
     if (section) this.settingTab?.selectSection(section);
-    const setting = (this.app as any).setting;
+    // The settings dialog is an internal App field omitted from the public typings.
+    const setting = (this.app as typeof this.app & {
+      setting?: { open(): void; openTabById(id: string): void };
+    }).setting;
     setting?.open();
     setting?.openTabById(this.manifest.id);
   }
@@ -292,7 +299,8 @@ export default class ObsiSyncPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = normalizeSettings(await this.loadData());
+    // Plugin.loadData() is typed as any; erase that before the saved object is checked.
+    this.settings = normalizeSettings((await this.loadData()) as unknown);
   }
 
   async saveSettings() {

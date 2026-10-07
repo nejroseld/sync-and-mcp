@@ -51,11 +51,18 @@ export const changeExcerpt = (content: string): string => {
   return text;
 };
 
+/** `parseYaml` is typed as `any`; this only erases that so the result is checked below. */
+const readYaml = (text: string): unknown => parseYaml(text) as unknown;
+
+// A YAML sequence is a non-null object and was already treated as frontmatter.
+const isFrontmatter = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
+
 const parseFm = (text: string | undefined): Record<string, unknown> | undefined => {
   if (text === undefined) return undefined;
   try {
-    const v = parseYaml(text);
-    return v && typeof v === "object" ? (v as Record<string, unknown>) : undefined;
+    const v = readYaml(text);
+    return isFrontmatter(v) ? v : undefined;
   } catch {
     return undefined;
   }
@@ -167,9 +174,7 @@ export class ChangesApplier {
     // allowed now (current state) and after the change (new frontmatter)
     const registry = defaultRegistry();
     const newFm = parseFm(extractFrontmatterText(c.content));
-    const curFm = file
-      ? (app.metadataCache.getFileCache(file)?.frontmatter as Record<string, unknown> | undefined)
-      : undefined;
+    const curFm = file ? app.metadataCache.getFileCache(file)?.frontmatter : undefined;
     const allowedNew = evaluateNote(rules, registry, { path: vaultPath, frontmatter: newFm });
     const allowedCur = file
       ? evaluateNote(rules, registry, { path: vaultPath, frontmatter: curFm })

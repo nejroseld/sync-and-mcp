@@ -6,6 +6,7 @@ export interface DeviceFacts {
   windows?: boolean;
   linux?: boolean;
   mobile?: boolean;
+  tablet?: boolean;
   userAgent?: string;
 }
 
@@ -40,7 +41,9 @@ export const deviceNameFromSystem = (facts: DeviceFacts): string | undefined => 
   if (facts.ios || /iPhone|iPad|iPod/.test(ua)) {
     if (/iPad/.test(ua)) name = "iPad";
     else if (/iPod/.test(ua)) name = "iPod";
-    else if (facts.ios || /iPhone/.test(ua)) name = "iPhone";
+    else if (/iPhone/.test(ua)) name = "iPhone";
+    else if (facts.ios && facts.tablet) name = "iPad";
+    else if (facts.ios) name = "iPhone";
   } else if (facts.android || /Android/.test(ua)) {
     name = androidModel(ua) ?? (facts.android || /Android/.test(ua) ? "Android" : undefined);
   } else if (facts.mac) {

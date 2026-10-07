@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { strict as assert } from "node:assert";
 import { ObsiApi } from "../src/api/client";
-import { fetchHttp } from "../src/api/http";
+import { fetchHttp } from "../tests/helpers/fetchHttp";
 import { decideChange } from "../src/ai/changes";
 import { computePublishDiff, groupAllowedByMount, kindOf, relPathFor, sha256Hex } from "../src/ai/publish";
 import { computeAllowedPaths, type RulesConfig } from "../src/ai/rules";

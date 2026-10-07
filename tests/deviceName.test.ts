@@ -12,6 +12,7 @@ describe("device names", () => {
     expect(deviceNameFromSystem({ windows: true })).to.equal("Windows");
     expect(deviceNameFromSystem({ linux: true })).to.equal("Linux");
     expect(deviceNameFromSystem({ ios: true })).to.equal("iPhone");
+    expect(deviceNameFromSystem({ ios: true, tablet: true })).to.equal("iPad");
     expect(deviceNameFromSystem({ ios: true, userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)" })).to.equal("iPad");
     expect(
       deviceNameFromSystem({
@@ -19,6 +20,7 @@ describe("device names", () => {
         userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36",
       })
     ).to.equal("Pixel 7");
+    expect(deviceNameFromSystem({ android: true })).to.equal("Android");
     expect(deviceNameFromSystem({ android: true, userAgent: "Mozilla/5.0 (Linux; Android 13; wv)" })).to.equal("Android");
     expect(deviceNameFromSystem({})).to.equal(undefined);
   });

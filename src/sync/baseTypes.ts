@@ -95,7 +95,7 @@ export interface MixedEntity {
 
   change?: boolean;
 
-  sideNotes?: any;
+  sideNotes?: SyncPlanSideNotes;
 }
 
 export type SyncTriggerSourceType =
@@ -104,3 +104,21 @@ export type SyncTriggerSourceType =
   | "auto"
   | "auto_once_init"
   | "auto_sync_on_save";
+
+/**
+ * Metadata on the synthetic "/$@meta" plan entry.
+ * Field values come from the sync run that built the plan.
+ */
+export interface SyncPlanSideNotes {
+  version?: string;
+  generateTime?: number;
+  generateTimeFmt?: string;
+  concurrency?: number;
+  syncConfigDir?: boolean;
+  syncUnderscoreItems?: boolean;
+  skipSizeLargerThan?: number;
+  protectModifyPercentage?: number;
+  conflictAction?: ConflictActionType;
+  syncDirection?: SyncDirectionType;
+  triggerSource?: SyncTriggerSourceType;
+}

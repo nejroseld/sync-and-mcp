@@ -117,7 +117,7 @@ export class FakeFsObsiServer extends FakeFs {
     return (await this.api.me()).name;
   }
 
-  async revokeAuth(): Promise<any> {
+  async revokeAuth(): Promise<void> {
     throw new Error("Method not implemented.");
   }
 

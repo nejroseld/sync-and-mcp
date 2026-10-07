@@ -25,7 +25,7 @@
 
 ## Что нужно
 
-- Obsidian 1.4.0 или новее.
+- Obsidian 1.4.4 или новее.
 - Работающий сервер [sync-and-mcp-backend](https://github.com/nejroseld/sync-and-mcp-backend): свой или чужой, куда вас пригласил администратор.
 
 ## Установка

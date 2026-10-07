@@ -13,10 +13,6 @@ const ctx = await esbuild.context({
     "@codemirror/*",
     "@lezer/*",
   ],
-  alias: {
-    path: "path-browserify",
-  },
-  inject: ["src/shims.ts"],
   format: "cjs",
   target: "es2020",
   platform: "browser",
@@ -25,7 +21,7 @@ const ctx = await esbuild.context({
   treeShaking: true,
   minify: prod,
   outfile: "main.js",
-  define: { global: "globalThis" },
+  define: { global: "window", globalThis: "window" },
 });
 
 if (watch) {

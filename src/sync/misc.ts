@@ -4,13 +4,62 @@
  * the last Apache-2.0 version of the sync engine.
  * Copyright (c) fyears and Remotely Save contributors. Licensed under the Apache License, Version 2.0.
  *
- * Modified by obsi-mcp: pruned to the helpers the sync engine needs; Buffer imported explicitly (mobile has no global Buffer); window.moment replaced by plain Date formatting; 'path' resolved to path-browserify by the bundler; extra hidden-dir allowance helpers added.
+ * Modified by obsi-mcp: pruned to the helpers the sync engine needs; window.moment replaced by plain Date formatting; vault paths use local `/` helpers instead of Node's path; extra hidden-dir allowance helpers added.
  */
 
-import * as path from "path";
-import type { DataAdapter } from "obsidian";
-import { Buffer } from "buffer";
+import type { DataAdapter, Stat } from "obsidian";
 import XRegExp from "xregexp";
+
+/**
+ * Node's path.posix.normalize for `/`-separated vault paths:
+ * collapse `.`, `..`, and duplicate slashes. Backslashes are not separators.
+ */
+const normalizePosix = (p: string): string => {
+  if (p === "") return ".";
+  const isAbsolute = p.startsWith("/");
+  const trailingSlash = p.endsWith("/");
+  const parts: string[] = [];
+  for (const part of p.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      if (parts.length > 0 && parts[parts.length - 1] !== "..") {
+        parts.pop();
+      } else if (!isAbsolute) {
+        parts.push("..");
+      }
+      continue;
+    }
+    parts.push(part);
+  }
+  let out = parts.join("/");
+  if (out === "") {
+    if (isAbsolute) return "/";
+    return trailingSlash ? "./" : ".";
+  }
+  if (trailingSlash) out += "/";
+  return isAbsolute ? `/${out}` : out;
+};
+
+/** Node's path.posix.dirname. Trailing slashes are ignored; the root is `/`. */
+const dirnamePosix = (p: string): string => {
+  if (p.length === 0) return ".";
+  const hasRoot = p.charCodeAt(0) === 47;
+  let end = -1;
+  let matchedSlash = true;
+  for (let i = p.length - 1; i >= 1; --i) {
+    if (p.charCodeAt(i) === 47) {
+      if (!matchedSlash) {
+        end = i;
+        break;
+      }
+    } else {
+      matchedSlash = false;
+    }
+  }
+  if (end === -1) return hasRoot ? "/" : ".";
+  if (hasRoot && end === 1) return "//";
+  return p.slice(0, end);
+};
 
 /**
  * If any part of the file starts with '.' or '_' then it's a hidden file.
@@ -19,7 +68,7 @@ export const isHiddenPath = (item: string, dot = true, underscore = true) => {
   if (!(dot || underscore)) {
     throw Error("parameter error for isHiddenPath");
   }
-  const k = path.posix.normalize(item); // TODO: only unix path now
+  const k = normalizePosix(item); // TODO: only unix path now
   const k2 = k.split("/"); // TODO: only unix path now
   for (const singlePart of k2) {
     if (singlePart === "." || singlePart === ".." || singlePart === "") {
@@ -71,12 +120,6 @@ export const mkdirpInVault = async (thePath: string, adapter: DataAdapter) => {
   }
 };
 
-export const bufferToArrayBuffer = (
-  b: Buffer | Uint8Array | ArrayBufferView
-) => {
-  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
-};
-
 export const hexStringToTypedArray = (hex: string) => {
   const f = hex.match(/[\da-f]{2}/gi);
   if (f === null) {
@@ -104,7 +147,7 @@ export const isVaildText = (a: string) => {
  * And if input is a file, returns its direname.
  */
 export const getParentFolder = (a: string) => {
-  const b = path.posix.dirname(a);
+  const b = dirnamePosix(a);
   if (b === "." || b === "/") {
     // the root
     return "/";
@@ -142,27 +185,40 @@ export const unixTimeToStr = (x: number | undefined | null, hasMs = false) => {
 };
 
 /**
+ * Obsidian types ctime/mtime as number. Android folder stats sometimes omit
+ * them or report NaN; callers treat that as a missing timestamp.
+ */
+type FixedStat = Omit<Stat, "ctime" | "mtime"> & {
+  ctime?: number;
+  mtime?: number;
+};
+
+const finiteOrUndefined = (value: unknown): number | undefined => {
+  if (typeof value !== "number" || Number.isNaN(value)) return undefined;
+  return value;
+};
+
+/**
  * On Android the stat has bugs for folders. So we need a fixed version.
  * (modified: takes adapter instead of Vault)
  */
-export const statFix = async (adapter: DataAdapter, path: string) => {
-  const s = await adapter.stat(path);
-  if (s === undefined || s === null) {
+export const statFix = async (adapter: DataAdapter, path: string): Promise<FixedStat> => {
+  const raw = await adapter.stat(path);
+  if (raw == null) {
     throw Error(`${path} doesn't exist cannot run stat`);
   }
-  if (s.ctime === undefined || s.ctime === null || Number.isNaN(s.ctime)) {
-    s.ctime = undefined as any; // force assignment
+  const fixed: FixedStat = {
+    type: raw.type,
+    size: raw.size,
+  };
+  const ctime = finiteOrUndefined(raw.ctime);
+  const mtime = finiteOrUndefined(raw.mtime);
+  if (ctime !== undefined) fixed.ctime = ctime;
+  if (mtime !== undefined) fixed.mtime = mtime;
+  if (finiteOrUndefined(raw.size) === undefined && raw.type === "folder") {
+    fixed.size = 0;
   }
-  if (s.mtime === undefined || s.mtime === null || Number.isNaN(s.mtime)) {
-    s.mtime = undefined as any; // force assignment
-  }
-  if (
-    (s.size === undefined || s.size === null || Number.isNaN(s.size)) &&
-    s.type === "folder"
-  ) {
-    s.size = 0;
-  }
-  return s;
+  return fixed;
 };
 
 export const isSpecialFolderNameToSkip = (

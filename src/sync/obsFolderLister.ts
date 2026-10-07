@@ -10,8 +10,19 @@
 import type { DataAdapter, ListedFiles } from "obsidian";
 import type { Entity } from "./baseTypes";
 
-import chunk from "lodash/chunk";
 import { isSpecialFolderNameToSkip, statFix } from "./misc";
+
+/** Same slicing as lodash chunk: successive slices of `size`, or [] when size < 1. */
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  if (size < 1) {
+    return [];
+  }
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size));
+  }
+  return result;
+}
 
 const isPluginDirItself = (x: string, pluginId: string) => {
   return (
@@ -89,7 +100,7 @@ export const listFilesInObsFolder = async (
             mtimeSvr: statRes.mtime,
             size: statRes.size, // local always unencrypted
             sizeRaw: statRes.size,
-          } as Entity,
+          },
           children: children,
         };
       });
@@ -98,7 +109,7 @@ export const listFilesInObsFolder = async (
       for (const iter of r2) {
         contents.push(iter.itself);
         const isInsideSelfPlugin =
-          pluginId !== undefined && isPluginDirItself(iter.itself.key!, pluginId);
+          pluginId !== undefined && isPluginDirItself(iter.itself.key, pluginId);
         if (iter.children !== undefined) {
           for (const iter2 of [
             ...iter.children.folders,

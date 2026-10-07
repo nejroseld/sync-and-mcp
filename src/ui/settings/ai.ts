@@ -5,7 +5,6 @@ import {
   STARTER_RULES_ALLOW,
   type FolderRule,
   type PropertyRule,
-  type RuleBase,
   type RulesConfig,
   type RulesPreset,
   isCheckboxRule,
@@ -132,10 +131,9 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
       [60, tr("1 hour")],
     ],
     value: s.aiPrivateHoldMinutes,
-    onChange: async (v) => {
+    onChange: (v) => {
       s.aiPrivateHoldMinutes = v;
-      await ctx.save();
-      plugin.publisher.schedule();
+      void ctx.save().then(() => plugin.publisher.schedule()).catch((err) => console.error("sync-and-mcp:", err));
     },
   });
   selectField(adv, {
@@ -143,9 +141,9 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
     desc: tr("Bigger attachments are not shared with AI."),
     options: [[5, "5 MB"], [10, "10 MB"], [25, "25 MB"], [50, "50 MB"], [100, "100 MB"]],
     value: s.aiMaxFileMB,
-    onChange: async (v) => {
+    onChange: (v) => {
       s.aiMaxFileMB = v;
-      await ctx.save();
+      void ctx.save().catch((err) => console.error("sync-and-mcp:", err));
     },
   });
   selectField(adv, {
@@ -159,9 +157,9 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
       [15, tr("Every 15 minutes")],
     ],
     value: s.changesPollMinutes,
-    onChange: async (v) => {
+    onChange: (v) => {
       s.changesPollMinutes = v;
-      await ctx.save();
+      void ctx.save().catch((err) => console.error("sync-and-mcp:", err));
     },
   });
   new Setting(adv)
@@ -430,7 +428,7 @@ const renderRulesEditor = (ctx: SettingsContext, el: HTMLElement, draft: RulesCo
     text: tr("Folder rule"),
     icon: "folder-plus",
     onClick: () => {
-      draft.rules.push({ id: nextId(), type: "folder", effect: "include", path: "" } as RuleBase);
+      draft.rules.push({ id: nextId(), type: "folder", effect: "include", path: "" });
       markDirty();
       ctx.refresh();
     },
@@ -439,7 +437,7 @@ const renderRulesEditor = (ctx: SettingsContext, el: HTMLElement, draft: RulesCo
     text: tr("Property rule"),
     icon: "tag",
     onClick: () => {
-      draft.rules.push({ id: nextId(), type: "property", effect: "exclude", key: "private", op: "equals", value: true, addToNewNotes: true } as RuleBase);
+      draft.rules.push({ id: nextId(), type: "property", effect: "exclude", key: "private", op: "equals", value: true, addToNewNotes: true });
       markDirty();
       ctx.refresh();
     },

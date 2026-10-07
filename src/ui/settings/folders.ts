@@ -195,9 +195,9 @@ const renderMountEditor = (ctx: SettingsContext, body: HTMLElement, m: MountConf
     value: m.path,
     placeholder: tr("Whole vault"),
     list: listId,
-    onChange: async (v) => {
+    onChange: (v) => {
       m.path = normalizeMountPath(v);
-      await ctx.save();
+      void ctx.save().catch((err) => console.error("sync-and-mcp:", err));
     },
   });
   new Setting(form)
@@ -210,13 +210,15 @@ const renderMountEditor = (ctx: SettingsContext, body: HTMLElement, m: MountConf
         known.add(v.id);
       }
       if (m.vaultId && !known.has(m.vaultId)) d.addOption(m.vaultId, m.vaultName ?? m.vaultId);
-      d.setValue(m.vaultId).onChange(async (v) => {
-        // a different server vault means a fresh comparison on both sides
-        for (const id of [m.vaultId, v]) if (id) await plugin.syncManager.clearHistory(id);
-        m.vaultId = v;
-        m.vaultName = plugin.vaults.find((x) => x.id === v)?.name;
-        await ctx.save();
-        ctx.refresh();
+      d.setValue(m.vaultId).onChange((v) => {
+        void (async () => {
+          // a different server vault means a fresh comparison on both sides
+          for (const id of [m.vaultId, v]) if (id) await plugin.syncManager.clearHistory(id);
+          m.vaultId = v;
+          m.vaultName = plugin.vaults.find((x) => x.id === v)?.name;
+          await ctx.save();
+          ctx.refresh();
+        })().catch((err) => console.error("sync-and-mcp:", err));
       });
     })
     .setDesc(plugin.vaults.length ? "" : tr("Server vaults are not loaded. Check the connection on the Overview tab."));
@@ -226,9 +228,9 @@ const renderMountEditor = (ctx: SettingsContext, body: HTMLElement, m: MountConf
     desc: tr("The same on every device of this server vault. Stored only on this device; a lost password cannot be recovered."),
     value: m.password,
     secret: true,
-    onChange: async (v) => {
+    onChange: (v) => {
       m.password = v;
-      await ctx.save();
+      void ctx.save().catch((err) => console.error("sync-and-mcp:", err));
     },
   });
   const check = form.createDiv();

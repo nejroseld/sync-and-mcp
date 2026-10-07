@@ -338,9 +338,7 @@ button.obsi-ui-list-row:hover { background: var(--background-modifier-hover); }
   box-shadow: none;
 }
 /* a card body with nothing visible in it is not drawn at all */
-.obsi-ui-card-body:not(:has(> :not(:empty))) {
-  display: none;
-}
+.obsi-ui-card-body:empty { display: none; }
 /* every text field gets the same width, whatever the length of its label or description;
    the show/hide button of a secret field sits inside the input instead of taking its space */
 .obsi-ui-field .setting-item-info { flex: 1 1 auto; }
@@ -361,7 +359,8 @@ button.obsi-ui-list-row:hover { background: var(--background-modifier-hover); }
   transform: translateY(-50%);
   margin: 0;
 }
-.obsi-ui-field .setting-item-control:has(.extra-setting-button) input { padding-right: 32px; }
+.obsi-ui-field.obsi-ui-secret .setting-item-control input[type="text"],
+.obsi-ui-field.obsi-ui-secret .setting-item-control input[type="password"] { padding-right: 32px; }
 @media (max-width: 600px) {
   .obsi-ui-field { flex-wrap: wrap; }
   .obsi-ui-field .setting-item-control { flex: 1 1 100%; }
@@ -449,7 +448,6 @@ a.obsi-ui-link-button:hover { background: var(--interactive-hover); }
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
   overflow-x: auto;
-  scrollbar-width: none;
 }
 .obsi-sync-nav::-webkit-scrollbar { display: none; }
 button.obsi-sync-nav-item {

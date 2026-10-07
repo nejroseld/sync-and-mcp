@@ -10,7 +10,7 @@
 import type { CipherMethodType, Entity } from "./baseTypes";
 import * as rclone from "./encryptRClone";
 
-import cloneDeep from "lodash/cloneDeep";
+import { cloneDeep } from "./clone";
 import { FakeFs } from "./fsAll";
 
 export interface PasswordCheckType {
@@ -333,7 +333,7 @@ export class FakeFsEncrypt extends FakeFs {
     return await this.innerFs.rm(keyEnc);
   }
 
-  async checkConnect(callbackFunc?: any): Promise<boolean> {
+  async checkConnect(callbackFunc?: unknown): Promise<boolean> {
     return await this.innerFs.checkConnect(callbackFunc);
   }
 
@@ -458,7 +458,7 @@ export class FakeFsEncrypt extends FakeFs {
     return await this.innerFs.getUserDisplayName();
   }
 
-  async revokeAuth(): Promise<any> {
+  async revokeAuth(): Promise<void> {
     return await this.innerFs.revokeAuth();
   }
 

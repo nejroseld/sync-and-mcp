@@ -48,7 +48,8 @@ export class SyncManager {
   private db: LocalForagePrevSyncStore;
 
   constructor(private host: SyncHost) {
-    const appId = (host.app as any).appId ?? host.app.vault.getName();
+    // appId is an internal Obsidian field, omitted from the public App typings.
+    const appId = (host.app as App & { appId?: string }).appId ?? host.app.vault.getName();
     this.db = new LocalForagePrevSyncStore(`obsi-sync/${appId}`);
   }
 

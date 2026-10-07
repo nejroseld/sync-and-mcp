@@ -84,6 +84,7 @@ export const textField = (
   setting.settingEl.addClass("obsi-ui-field");
   if (o.desc) setting.setDesc(o.desc);
   if (o.secret) {
+    setting.settingEl.addClass("obsi-ui-secret");
     setting.addExtraButton((b) => {
       b.setIcon("eye").setTooltip(tr("Show")).onClick(() => {
         const hidden = input.type === "password";

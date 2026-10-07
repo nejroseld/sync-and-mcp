@@ -32,6 +32,15 @@ export const encodePath = (p: string) =>
 
 const td = new TextDecoder();
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** `JSON.parse` is typed as `any`; this only erases that so the value is checked below. */
+const parseJson = (text: string): unknown => JSON.parse(text) as unknown;
+
+const textOr = (value: unknown, fallback: string): string =>
+  value == null ? fallback : String(value);
+
 /**
  * Thin client of the obsi-mcp HTTP API v1. One instance per (server, token).
  */
@@ -73,9 +82,11 @@ export class ObsiApi {
       let code = "http_error";
       let message = `HTTP ${res.status}`;
       try {
-        const j = JSON.parse(td.decode(res.body));
-        code = j?.error?.code ?? code;
-        message = j?.error?.message ?? message;
+        const parsed = parseJson(td.decode(res.body));
+        if (isRecord(parsed) && isRecord(parsed.error)) {
+          code = textOr(parsed.error.code, code);
+          message = textOr(parsed.error.message, message);
+        }
       } catch {
         // not json
       }
@@ -99,8 +110,10 @@ export class ObsiApi {
       auth,
     });
     if (res.body.byteLength === 0) {
+      // Empty body (204). A generic T cannot express that without this assertion.
       return undefined as T;
     }
+    // Declared endpoint shape. Checking every field would reject bodies that are passed through today.
     return JSON.parse(td.decode(res.body)) as T;
   }
 
@@ -113,6 +126,7 @@ export class ObsiApi {
   }
   async health() {
     const res = await this.raw("GET", "/health", { auth: false });
+    // Passed through as the declared health shape; rejecting missing fields would change what the UI accepts.
     return JSON.parse(td.decode(res.body)) as {
       ok: boolean;
       version: string;
@@ -259,8 +273,10 @@ export class ObsiApi {
   ): Promise<T> {
     const res = await this.raw(method, path, { body, headers, okStatuses });
     if (res.body.byteLength === 0) {
+      // Empty body (204). A generic T cannot express that without this assertion.
       return undefined as T;
     }
+    // Declared endpoint shape. Checking every field would reject bodies that are passed through today.
     return JSON.parse(td.decode(res.body)) as T;
   }
 

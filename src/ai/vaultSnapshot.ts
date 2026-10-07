@@ -10,8 +10,7 @@ export const takeSnapshot = (app: App): VaultSnapshot => {
     frontmatter: (p) => {
       const f = byPath.get(p);
       if (!f) return undefined;
-      const fm = app.metadataCache.getFileCache(f)?.frontmatter;
-      return fm as Record<string, unknown> | undefined;
+      return app.metadataCache.getFileCache(f)?.frontmatter;
     },
     inlineTags: (p) => {
       const f = byPath.get(p);

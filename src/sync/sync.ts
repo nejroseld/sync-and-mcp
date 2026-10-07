@@ -227,7 +227,7 @@ const ensembleMixedEnties = async (
       const prevSyncCopied = await fsEncrypt.encryptEntity(
         copyEntityAndFixTimeFormat(prevSync)
       );
-      if (finalMappings.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(finalMappings, key)) {
         finalMappings[key].prevSync = prevSyncCopied;
       } else {
         finalMappings[key] = {
@@ -261,7 +261,7 @@ const ensembleMixedEnties = async (
     const localCopied = await fsEncrypt.encryptEntity(
       copyEntityAndFixTimeFormat(local)
     );
-    if (finalMappings.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(finalMappings, key)) {
       finalMappings[key].local = localCopied;
     } else {
       finalMappings[key] = {
@@ -300,10 +300,7 @@ const getSyncPlanInplace = async (
   const keptFolder = new Set<string>();
   const mayDeleteFolder = new Set<string>();
 
-  for (let i = 0; i < sortedKeys.length; ++i) {
-    if (i % 100 === 0) {
-    }
-    const key = sortedKeys[i];
+  for (const key of sortedKeys) {
     const mixedEntry = mixedEntityMappings[key];
     const { local, prevSync, remote } = mixedEntry;
 
@@ -1119,7 +1116,12 @@ export const doActualSync = async (
   concurrency: number,
   protectModifyPercentage: number,
   db: PrevSyncStore,
-  callbackSyncProcess?: any
+  callbackSyncProcess?: (
+    done: number,
+    total: number,
+    key: string,
+    decision: MixedEntity["decision"]
+  ) => void | Promise<void>
 ) => {
   const {
     onlyMarkSyncedOps,
@@ -1220,8 +1222,9 @@ export const doActualSync = async (
           // console.debug(`finished ${key}`);
         };
 
-        queue.add(fn).catch((e) => {
-          const msg = `${key}: ${e.message}`;
+        queue.add(fn).catch((e: unknown) => {
+          const message = e instanceof Error ? e.message : String(e);
+          const msg = `${key}: ${message}`;
           potentialErrors.push(new Error(msg));
           if (potentialErrors.length >= 3) {
             tooManyErrors = true;
@@ -1348,7 +1351,7 @@ export async function syncer(
     }
     progress?.(7);
     return { ok: true, plan };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       ok: false,
       error: error instanceof Error ? error : new Error(String(error)),
