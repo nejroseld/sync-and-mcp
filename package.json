@@ -1,6 +1,6 @@
 {
   "name": "sync-and-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sync and MCP: end-to-end encrypted multi-vault sync for Obsidian (sync engine derived from Remotely Save) and MCP access for AI assistants through a self-hosted server.",
   "private": true,
   "author": "nejroseld (https://github.com/nejroseld)",
