@@ -1,9 +1,21 @@
-Obsi Sync (obsi-mcp plugin)
+Sync and MCP — Obsidian plugin
+Copyright (C) 2026 nejroseld
+https://github.com/nejroseld/sync-and-mcp
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License version 3, as published by the
+Free Software Foundation. See LICENSE for the full text.
+
+The project was developed under the working name "obsi-mcp"; source headers
+that say "Modified by obsi-mcp" or "obsi-mcp original code" refer to this
+project.
 
 This product includes software derived from Remotely Save
 (https://github.com/remotely-save/remotely-save), Copyright (c) fyears and
 Remotely Save contributors, licensed under the Apache License, Version 2.0.
-A copy of the license is in LICENSE-Apache-2.0.txt.
+A copy of that license is in LICENSE-Apache-2.0.txt. The derived files remain
+available under the Apache License 2.0; as part of this combined work they are
+distributed under the GNU General Public License version 3.
 
 Derived files (all under src/sync/), taken from the `src/` directory of Remotely Save
 at commit adacda7ee5cf95cfaeb646bb4a0862925e9a4d02 (the parent of 9f67d41),
@@ -17,12 +29,11 @@ the last revision in which the sync engine was still Apache-2.0:
   src/sync/fsLocal.ts         <- src/fsLocal.ts
   src/sync/obsFolderLister.ts <- src/obsFolderLister.ts
   src/sync/copyLogic.ts       <- src/copyLogic.ts
-  src/sync/encryptOpenSSL.ts  <- src/encryptOpenSSL.ts
   src/sync/encryptRClone.ts   <- src/encryptRClone.ts (web workers removed)
 
 Each of these files carries a header stating its origin and "Modified by obsi-mcp"
 with a summary of the changes. All other files in this plugin are original work of
-the obsi-mcp project.
+this project.
 
 Nothing from the `pro/` directory of Remotely Save (PolyForm Strict License) is used.
 Nothing from the GPLv3 `copilot_old` directory is used.

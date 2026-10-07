@@ -1,8 +1,25 @@
 {
-  "name": "obsi-sync",
+  "name": "sync-and-mcp",
   "version": "0.1.0",
-  "description": "Obsi Sync: E2EE multi-vault sync (fork of Remotely Save engine) and AI Available publishing for obsi-mcp server.",
+  "description": "Sync and MCP: end-to-end encrypted multi-vault sync for Obsidian (sync engine derived from Remotely Save) and MCP access for AI assistants through a self-hosted server.",
   "private": true,
+  "author": "nejroseld (https://github.com/nejroseld)",
+  "license": "GPL-3.0-only",
+  "homepage": "https://github.com/nejroseld/sync-and-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nejroseld/sync-and-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nejroseld/sync-and-mcp/issues"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "sync",
+    "e2ee",
+    "mcp"
+  ],
   "scripts": {
     "typecheck": "tsc -noEmit -skipLibCheck",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
@@ -10,7 +27,6 @@
     "test": "mocha --import=tsx 'tests/**/*.test.ts'",
     "e2e": "tsx tests-e2e/e2e.ts"
   },
-  "license": "SEE NOTICE",
   "devDependencies": {
     "@types/chai": "^4.3.16",
     "@types/lodash": "^4.17.7",

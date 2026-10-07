@@ -28,12 +28,12 @@ export const STATE_ICON: Record<SyncState, string> = {
 /** Short status-bar text, e.g. "Synced 3 min ago". */
 export const stateLabel = (plugin: ObsiSyncPlugin, state = syncState(plugin)): string => {
   switch (state) {
-    case "setup": return tr("Obsi: set up");
+    case "setup": return tr("Sync and MCP: set up");
     case "paused": return tr("Sync paused");
     case "syncing": return tr("Syncing...");
     case "error": return tr("Sync problem");
     case "synced": return tr("Synced {time}", { time: relativeTime(plugin.syncManager.lastRunAt) });
-    case "idle": return tr("Obsi Sync");
+    case "idle": return tr("Sync and MCP");
   }
 };
 
@@ -71,8 +71,8 @@ export class StatusBar {
       state === "error"
         ? failures.map((f) => `${f.path || tr("Whole vault")}: ${f.lastError}`).join("\n")
         : state === "setup"
-          ? tr("Click to set up Obsi Sync")
-          : tr("Obsi Sync: click for actions");
+          ? tr("Click to set up Sync and MCP")
+          : tr("Sync and MCP: click for actions");
     this.el.setAttribute("aria-label", tip);
     this.el.setAttribute("data-tooltip-position", "top");
   }
@@ -98,7 +98,7 @@ export class StatusBar {
       menu.addItem((i) => i.setTitle(tr("Show sync problems")).setIcon("alert-triangle").onClick(() => p.openSettings("overview")));
     }
     menu.addItem((i) => i.setTitle(tr("Add another device")).setIcon("smartphone").onClick(() => p.openSettings("devices")));
-    menu.addItem((i) => i.setTitle(tr("Obsi Sync settings")).setIcon("settings").onClick(() => p.openSettings()));
+    menu.addItem((i) => i.setTitle(tr("Sync and MCP settings")).setIcon("settings").onClick(() => p.openSettings()));
     menu.showAtMouseEvent(e);
   }
 }

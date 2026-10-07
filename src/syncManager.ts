@@ -74,26 +74,26 @@ export class SyncManager {
   async syncAll(trigger: SyncTriggerSourceType = "manual"): Promise<boolean> {
     const s = this.host.settings;
     if (this.running) {
-      if (trigger === "manual") new Notice(t("Obsi Sync: sync already running"));
+      if (trigger === "manual") new Notice(t("Sync and MCP: sync already running"));
       return false;
     }
     if (!s.syncEnabled) {
-      if (trigger === "manual") new Notice(t("Obsi Sync: sync is disabled in settings"));
+      if (trigger === "manual") new Notice(t("Sync and MCP: sync is disabled in settings"));
       return false;
     }
     const api = this.host.getApi();
     if (!api) {
-      if (trigger === "manual") new Notice(t("Obsi Sync: set server URL and device token first"));
+      if (trigger === "manual") new Notice(t("Sync and MCP: set server URL and device token first"));
       return false;
     }
     const problems = validateMounts(s.mounts);
     if (problems.length > 0) {
-      if (trigger === "manual") new Notice(`Obsi Sync: ${problems.join("; ")}`);
+      if (trigger === "manual") new Notice(`Sync and MCP: ${problems.join("; ")}`);
       return false;
     }
     const mounts = s.mounts.filter((m) => m.vaultId !== "");
     if (mounts.length === 0) {
-      if (trigger === "manual") new Notice(t("Obsi Sync: no mounts configured"));
+      if (trigger === "manual") new Notice(t("Sync and MCP: no mounts configured"));
       return false;
     }
 
@@ -111,7 +111,7 @@ export class SyncManager {
         st.path = m.path;
         st.lastRun = Date.now();
         this.status.set(m.vaultId, st);
-        this.report(t("Obsi: syncing {vault}", { vault: label }));
+        this.report(t("Sync and MCP: syncing {vault}", { vault: label }));
 
         if (m.password === "") {
           st.lastError = "no password set for this mount";
@@ -154,7 +154,7 @@ export class SyncManager {
           progress: (step, info) => {
             if (info?.total) {
               const done = info.done ?? 0;
-              this.report(t("Obsi: {vault} {done}/{total}", { vault: label, done, total: info.total }), { done, total: info.total });
+              this.report(t("Sync and MCP: {vault} {done}/{total}", { vault: label, done, total: info.total }), { done, total: info.total });
             }
           },
         });
@@ -164,19 +164,19 @@ export class SyncManager {
         } else {
           allOk = false;
           st.lastError = res.error?.message ?? "unknown error";
-          console.warn(`obsi-sync: sync of ${label} failed:`, res.error);
+          console.warn(`sync-and-mcp: sync of ${label} failed:`, res.error);
         }
       }
     } finally {
       this.running = false;
       this.lastRunAt = Date.now();
     }
-    this.report(t(allOk ? "Obsi: synced" : "Obsi: sync problem (will retry)"));
+    this.report(t(allOk ? "Sync and MCP: synced" : "Sync and MCP: sync problem (will retry)"));
     if (!allOk && trigger === "manual") {
       const errs = [...this.status.values()].filter((x) => x.lastError).map((x) => `${x.path || "/"}: ${x.lastError}`);
-      new Notice(t("Obsi Sync failed: {errors}", { errors: errs.join("; ") }), 8000);
+      new Notice(t("Sync and MCP failed: {errors}", { errors: errs.join("; ") }), 8000);
     } else if (trigger === "manual") {
-      new Notice(t("Obsi Sync: done"));
+      new Notice(t("Sync and MCP: done"));
     }
     this.host.onSyncFinished(allOk);
     return allOk;

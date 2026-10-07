@@ -1,3 +1,4 @@
+import { Modal } from "obsidian";
 import { ApiError } from "../../api/client";
 import { t as tr } from "../../i18n";
 import { createDeviceAdder } from "../../deviceAdder";
@@ -26,6 +27,88 @@ export const renderDevices = (ctx: SettingsContext, el: HTMLElement) => {
   else renderSharedSetup(ctx, el);
 };
 
+/** A new device token for every synced vault, packed with this device's setup into a QR payload. */
+const addDevice = async (ctx: SettingsContext, name: string) => {
+  const { plugin } = ctx;
+  const grants: Record<string, string[]> = {};
+  for (const m of plugin.settings.mounts) grants[m.vaultId] = ["read", "write"];
+  const created = await plugin.getApi()!.createOwnToken(name, "device", grants);
+  return { name: created.name, payload: createDeviceAdder({ ...plugin.settings, deviceToken: created.token ?? "" }) };
+};
+
+const addDeviceError = (e: unknown) =>
+  e instanceof ApiError && e.code === "unknown_vault"
+    ? tr("One of the synced vaults belongs to another account, so it can't be shared with a new device token. On the new device, sign in to your account instead.")
+    : tr("Could not add the device: {error}", { error: errorText(e) });
+
+/**
+ * The quick way from the Overview: a name is already filled in, so one click (or Enter) shows the QR code.
+ * Without an account session only the shared setup exists, which lives on the Devices tab.
+ */
+export const openAddDevice = (ctx: SettingsContext) => {
+  if (!ctx.plugin.me?.account_token) return ctx.go("devices");
+  new AddDeviceModal(ctx).open();
+};
+
+class AddDeviceModal extends Modal {
+  private name = tr("Phone");
+  private added: { name: string; payload: string } | undefined;
+
+  constructor(private ctx: SettingsContext) {
+    super(ctx.app);
+  }
+
+  onOpen() {
+    this.modalEl.addClass("obsi-ui-dialog");
+    this.render();
+  }
+
+  onClose() {
+    // the QR holds a live token: it is not kept anywhere once the window closes
+    this.added = undefined;
+    this.contentEl.empty();
+  }
+
+  private render() {
+    const el = this.contentEl;
+    el.empty();
+    if (this.added) {
+      this.titleEl.setText(tr("QR code for “{name}”", { name: this.added.name }));
+      callout(el, "info", tr("On the new device, choose “Copy setup from another device” in the welcome window and scan the code."));
+      renderQr(el, this.added.payload, () => this.close());
+      callout(el, "warning", tr("The code keeps working until you disconnect “{name}” on the Devices tab. Scan it on one device only.", { name: this.added.name }));
+      return;
+    }
+    this.titleEl.setText(tr("Add a device"));
+    const { input } = textField(el, { name: tr("Device name"), desc: tr("Helps you recognize it in the list of devices."), value: this.name, onChange: (v) => (this.name = v) });
+    const errorBox = el.createDiv();
+    const row = el.createDiv({ cls: "obsi-ui-dialog-buttons" });
+    button(row, { text: tr("Cancel"), onClick: () => this.close() });
+    const create = button(row, {
+      text: tr("Create QR code"),
+      icon: "qr-code",
+      cta: true,
+      busyText: tr("Creating..."),
+      onClick: async () => {
+        errorBox.empty();
+        if (!this.name.trim()) return void callout(errorBox, "error", tr("Enter a name"));
+        try {
+          this.added = await addDevice(this.ctx, this.name.trim());
+          this.render();
+          // the device list only matters on the Devices tab, which reloads it anyway
+          void reloadTokens(this.ctx).catch(() => undefined);
+        } catch (e) {
+          callout(errorBox, "error", addDeviceError(e));
+        }
+      },
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) create.buttonEl.click();
+    });
+    window.setTimeout(() => input.select());
+  }
+}
+
 const steps = (el: HTMLElement, items: string[]) => {
   const list = el.createEl("ol", { cls: "obsi-ui-steps" });
   for (const text of items) list.createEl("li", { text });
@@ -33,10 +116,10 @@ const steps = (el: HTMLElement, items: string[]) => {
 
 /** Signed in to an account: every new device gets its own token, so it can be disconnected alone. */
 const renderAccountDevices = (ctx: SettingsContext, el: HTMLElement) => {
-  const { plugin, state } = ctx;
+  const { state } = ctx;
   sectionTitle(el, tr("Add a device"));
   steps(el, [
-    tr("Install Obsi Sync in Obsidian on the new device and open the vault you want to sync."),
+    tr("Install Sync and MCP in Obsidian on the new device and open the vault you want to sync."),
     tr("Here, name the new device and create its QR code."),
     tr("On the new device, choose “Copy setup from another device” in the welcome window and scan the code."),
   ]);
@@ -58,16 +141,11 @@ const renderAccountDevices = (ctx: SettingsContext, el: HTMLElement) => {
     const create = async () => {
       errorBox.empty();
       if (!name.trim()) return void callout(errorBox, "error", tr("Enter a name"));
-      const grants: Record<string, string[]> = {};
-      for (const m of plugin.settings.mounts) grants[m.vaultId] = ["read", "write"];
       try {
-        const created = await plugin.getApi()!.createOwnToken(name.trim(), "device", grants);
-        state.newDevice = { name: created.name, payload: createDeviceAdder({ ...plugin.settings, deviceToken: created.token ?? "" }) };
+        state.newDevice = await addDevice(ctx, name.trim());
         await reloadTokens(ctx);
       } catch (e) {
-        callout(errorBox, "error", e instanceof ApiError && e.code === "unknown_vault"
-          ? tr("One of the synced vaults belongs to another account, so it can't be shared with a new device token. On the new device, sign in to your account instead.")
-          : tr("Could not add the device: {error}", { error: errorText(e) }));
+        callout(errorBox, "error", addDeviceError(e));
       }
     };
     input.addEventListener("keydown", (e) => {
@@ -90,7 +168,7 @@ const renderAccountDevices = (ctx: SettingsContext, el: HTMLElement) => {
 const renderSharedSetup = (ctx: SettingsContext, el: HTMLElement) => {
   const { plugin, state } = ctx;
   steps(el, [
-    tr("Install Obsi Sync in Obsidian on the new device and open the vault you want to sync."),
+    tr("Install Sync and MCP in Obsidian on the new device and open the vault you want to sync."),
     tr("In the welcome window choose “Copy setup from another device”."),
     tr("Scan the QR code below with the camera, or paste the setup text."),
   ]);

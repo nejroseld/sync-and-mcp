@@ -9,7 +9,7 @@ if [[ ! -d "$vault_path/.obsidian" ]]; then
   exit 1
 fi
 
-target_dir="$vault_path/.obsidian/plugins/obsi-sync"
+target_dir="$vault_path/.obsidian/plugins/sync-and-mcp"
 cd "$plugin_root"
 if [[ ! -d node_modules ]]; then
   npm ci
@@ -20,4 +20,4 @@ install -m 644 main.js manifest.json styles.css "$target_dir/"
 for artifact in main.js manifest.json styles.css; do
   cmp "$artifact" "$target_dir/$artifact"
 done
-printf 'Installed and verified Obsi Sync in %s\n' "$target_dir"
+printf 'Installed and verified Sync and MCP in %s\n' "$target_dir"

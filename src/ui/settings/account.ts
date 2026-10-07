@@ -54,8 +54,10 @@ export const reloadTokens = async (ctx: SettingsContext) => {
 };
 
 /** Vaults this account owns: the only ones its tokens can be given access to. */
-export const ownedVaults = (ctx: SettingsContext) =>
-  ctx.plugin.vaults.filter((v) => v.owner_user_id && v.owner_user_id === ctx.state.account.userId);
+export const ownedVaults = (ctx: SettingsContext) => {
+  const userId = ctx.state.account.userId ?? ctx.plugin.me?.user?.id;
+  return ctx.plugin.vaults.filter((v) => v.owner_user_id && v.owner_user_id === userId);
+};
 
 export const vaultNames = (ctx: SettingsContext, t: TokenInfo) =>
   Object.keys(t.grants ?? {}).map((vid) => ctx.plugin.vaults.find((v) => v.id === vid)?.name ?? vid).join(", ");

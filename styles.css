@@ -29,7 +29,7 @@
 .obsi-ui-section {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 4px 12px;
   margin: 24px 0 8px;
 }
@@ -42,6 +42,15 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-faint);
+}
+/* a button next to the section title sits on the title line, not below it */
+.obsi-ui-section > .obsi-ui-buttons { margin: 0; }
+/* smaller heading inside a section, e.g. "Waiting for sign-up" */
+.obsi-ui-subtitle {
+  margin: 16px 0 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
 }
 .obsi-ui-section-desc {
   flex: 1 1 100%;
@@ -154,6 +163,13 @@ button.obsi-ui-choice.is-selected {
   background: radial-gradient(var(--interactive-accent) 45%, transparent 50%);
 }
 
+/* quick actions on the Overview: two cards side by side, stacked on narrow screens */
+.obsi-ui-quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 12px 0 0;
+}
+
 /* cards */
 .obsi-ui-card {
   margin: 8px 0;
@@ -219,7 +235,8 @@ button.obsi-ui-choice.is-selected {
   box-shadow: none;
 }
 .obsi-sync-settings .obsi-ui-list > :first-child { border-top: none; }
-.obsi-ui-list > .setting-item.is-revoked { opacity: 0.55; }
+.obsi-sync-settings .obsi-ui-list > .setting-item { align-items: center; }
+.obsi-ui-list > .setting-item .setting-item-control { align-self: center; }
 .obsi-ui-list > p { margin: 0; padding: 12px 14px; }
 button.obsi-ui-list-row {
   display: flex;
@@ -324,10 +341,30 @@ button.obsi-ui-list-row:hover { background: var(--background-modifier-hover); }
 .obsi-ui-card-body:not(:has(> :not(:empty))) {
   display: none;
 }
+/* every text field gets the same width, whatever the length of its label or description;
+   the show/hide button of a secret field sits inside the input instead of taking its space */
+.obsi-ui-field .setting-item-info { flex: 1 1 auto; }
+.obsi-ui-field .setting-item-control {
+  position: relative;
+  flex: 0 0 min(300px, 55%);
+  min-width: 0;
+}
 .obsi-ui-field .setting-item-control input[type="text"],
 .obsi-ui-field .setting-item-control input[type="password"] {
   width: 100%;
-  min-width: 180px;
+  min-width: 0;
+}
+.obsi-ui-field .setting-item-control .extra-setting-button {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.obsi-ui-field .setting-item-control:has(.extra-setting-button) input { padding-right: 32px; }
+@media (max-width: 600px) {
+  .obsi-ui-field { flex-wrap: wrap; }
+  .obsi-ui-field .setting-item-control { flex: 1 1 100%; }
 }
 .obsi-ui-buttons {
   display: flex;

@@ -1,4 +1,4 @@
-import { type App, Modal } from "obsidian";
+import { type App, Modal, Notice } from "obsidian";
 import type { ObsiApi } from "../../api/client";
 import type { TokenInfo, VaultInfo } from "../../api/types";
 import { t as tr } from "../../i18n";
@@ -13,24 +13,18 @@ const EDIT_OPS = [...READ_OPS, "write"];
 /** AI tab: connect Claude or another MCP client to the vaults of this account. */
 export const renderAssistants = (ctx: SettingsContext, el: HTMLElement) => {
   const { plugin } = ctx;
+  // the header holds only the title, description and button; everything else goes below it, full width
   const section = sectionTitle(el, tr("Assistants"), tr("Each assistant (Claude Desktop, Claude Code, Cursor...) gets its own access key, so you can disconnect one without touching the others."));
   if (!plugin.getApi()) return;
   const plainToken = plugin.me !== undefined && !plugin.me.account_token;
-  const account = plainToken ? undefined : loadedAccount(ctx, section);
+  const account = plainToken ? undefined : loadedAccount(ctx, el);
   if (plainToken || (account && !account.accountToken)) {
-    callout(section, "info", tr("To connect an assistant yourself, sign in to your account (Overview → Connection → Sign in). Or ask the server admin for an MCP token."));
+    callout(el, "info", tr("To connect an assistant, sign in to your account (Overview → Connection → Sign in)."));
     return;
   }
   if (!account) return;
-  const vaults = ownedVaults(ctx);
-  const root = plugin.settings.mounts.find((m) => m.path === "")?.vaultId;
-  button(buttonRow(section), {
-    text: tr("Connect an assistant"),
-    icon: "plus",
-    cta: true,
-    onClick: () => new ConnectAssistantModal(ctx.app, plugin.getApi()!, plugin.settings.serverUrl, vaults, root, !plugin.settings.aiEnabled, () => reloadTokens(ctx)).open(),
-  });
-  tokenList(ctx, section, account.tokens.filter((t) => t.kind === "mcp"), {
+  button(buttonRow(section), { text: tr("Connect an assistant"), icon: "plus", cta: true, onClick: () => openConnectAssistant(ctx) });
+  tokenList(ctx, el, account.tokens.filter((t) => t.kind === "mcp"), {
     describe: (t) => tr("{vaults} · {access} · {used}", {
       vaults: vaultNames(ctx, t) || tr("no access"),
       access: Object.values(t.grants ?? {}).some((ops) => ops.includes("write")) ? tr("can suggest edits") : tr("read only"),
@@ -40,9 +34,28 @@ export const renderAssistants = (ctx: SettingsContext, el: HTMLElement) => {
   });
 };
 
+/**
+ * Opens the connect window directly, also from the Overview. The name and the vault of the whole
+ * synced folder are filled in, so “Connect” alone is enough. Without an account session it shows the AI tab.
+ */
+export const openConnectAssistant = async (ctx: SettingsContext) => {
+  const { plugin } = ctx;
+  const api = plugin.getApi();
+  if (!api || !plugin.me?.account_token) return ctx.go("ai");
+  if (!plugin.vaults.length) {
+    try {
+      plugin.vaults = await api.listVaults();
+    } catch (e) {
+      return void new Notice(tr("Failed: {error}", { error: errorText(e) }));
+    }
+  }
+  const root = plugin.settings.mounts.find((m) => m.path === "")?.vaultId;
+  new ConnectAssistantModal(ctx.app, api, plugin.settings.serverUrl, ownedVaults(ctx), root, !plugin.settings.aiEnabled, () => reloadTokens(ctx)).open();
+};
+
 /** Name → vaults → read or edit; then the connection details, shown once. */
 class ConnectAssistantModal extends Modal {
-  private name = "";
+  private name = "Claude";
   private chosen: Set<string>;
   private edits = false;
   private created: TokenInfo | undefined;
@@ -75,7 +88,8 @@ class ConnectAssistantModal extends Modal {
     el.empty();
     if (this.created) return this.renderCreated();
     this.titleEl.setText(tr("Connect an assistant"));
-    textField(el, { name: tr("Name"), desc: tr("Which assistant it is, e.g. “Claude Desktop”."), value: this.name, placeholder: "Claude Desktop", onChange: (v) => (this.name = v) });
+    const { input } = textField(el, { name: tr("Name"), desc: tr("Which assistant it is, e.g. “Claude Desktop”."), value: this.name, placeholder: "Claude Desktop", onChange: (v) => (this.name = v) });
+    window.setTimeout(() => input.select());
 
     el.createDiv({ cls: "obsi-ui-section-title", text: tr("Vaults") });
     if (!this.vaults.length) callout(el, "warning", tr("Your account has no vaults of its own yet."));
@@ -92,7 +106,7 @@ class ConnectAssistantModal extends Modal {
     const option = (edits: boolean, icon: string, title: string, desc: string) =>
       choiceCard(group, { icon, title, desc, selected: this.edits === edits, onClick: () => { this.edits = edits; this.render(); } });
     option(false, "book-open", tr("Read and search"), tr("Finds and reads the notes you share with AI."));
-    option(true, "pencil", tr("Read, search and suggest edits"), tr("Can also write notes. Edits reach your vault through Obsi Sync on your devices."));
+    option(true, "pencil", tr("Read, search and suggest edits"), tr("Can also write notes. Edits reach your vault through Sync and MCP on your devices."));
     callout(el, "info", this.aiOff
       ? tr("AI access is off on this device, so the assistant will see no notes until you choose what AI can read on this tab.")
       : tr("The assistant sees only the notes you share with AI. Everything else stays encrypted."));
@@ -100,7 +114,7 @@ class ConnectAssistantModal extends Modal {
     const errorBox = el.createDiv();
     const row = el.createDiv({ cls: "obsi-ui-dialog-buttons" });
     button(row, { text: tr("Cancel"), onClick: () => this.close() });
-    button(row, {
+    const connect = button(row, {
       text: tr("Connect"),
       cta: true,
       busyText: tr("Creating..."),
@@ -111,12 +125,16 @@ class ConnectAssistantModal extends Modal {
         const ops = this.edits ? EDIT_OPS : READ_OPS;
         try {
           this.created = await this.api.createOwnToken(this.name.trim(), "mcp", Object.fromEntries([...this.chosen].map((vid) => [vid, ops])));
-          await this.onCreated();
           this.render();
+          // the key is shown first: a failed list reload must not hide it
+          void this.onCreated().catch(() => undefined);
         } catch (e) {
           callout(errorBox, "error", tr("Failed: {error}", { error: errorText(e) }));
         }
       },
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) connect.buttonEl.click();
     });
   }
 

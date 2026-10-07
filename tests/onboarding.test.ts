@@ -161,7 +161,7 @@ describe("rules presets", () => {
 
 describe("invitations", () => {
   it("reads the server and the code from a forwarded message", () => {
-    const text = "Obsi Sync invitation for alice\nServer: https://203-0-113-10.sslip.io/\nCode: inv_Ab-c_9\nIn Obsidian: ...";
+    const text = "Sync and MCP invitation for alice\nServer: https://203-0-113-10.sslip.io/\nCode: inv_Ab-c_9\nIn Obsidian: ...";
     expect(parseInvitation(text)).to.deep.equal({ serverUrl: "https://203-0-113-10.sslip.io", code: "inv_Ab-c_9" });
   });
 

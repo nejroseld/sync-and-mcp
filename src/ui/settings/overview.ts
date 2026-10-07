@@ -5,7 +5,9 @@ import { isConfigured } from "../../settings";
 import { button, buttonRow, callout, card, choiceCard, errorText, icon, pill, relativeTime, sectionTitle, textField } from "../kit";
 import { STATE_ICON, syncState } from "../statusBar";
 import { aiSummary } from "./ai";
+import { openConnectAssistant } from "./assistants";
 import type { SettingsContext } from "./context";
+import { openAddDevice } from "./devices";
 import { mountTitle, mountStatus } from "./folders";
 
 export const renderOverview = (ctx: SettingsContext, el: HTMLElement) => {
@@ -21,6 +23,21 @@ export const renderOverview = (ctx: SettingsContext, el: HTMLElement) => {
 
   renderStatusHero(ctx, el);
 
+  // the two things people come here for most, one click away
+  const quick = el.createDiv({ cls: "obsi-ui-choices obsi-ui-quick" });
+  choiceCard(quick, {
+    icon: "smartphone",
+    title: tr("Add a device"),
+    desc: tr("Phone, tablet or computer: scan a QR code."),
+    onClick: () => openAddDevice(ctx),
+  });
+  choiceCard(quick, {
+    icon: "bot",
+    title: tr("Connect an assistant"),
+    desc: tr("Claude or another MCP client."),
+    onClick: () => void openConnectAssistant(ctx),
+  });
+
   sectionTitle(el, tr("This vault"));
   const rows = el.createDiv({ cls: "obsi-ui-list" });
   for (const m of s.mounts) {
@@ -35,12 +52,6 @@ export const renderOverview = (ctx: SettingsContext, el: HTMLElement) => {
   }
   const ai = aiSummary(ctx);
   listRow(rows, { icon: "sparkles", title: tr("AI access"), desc: ai.text, pill: ai.pill, onClick: () => ctx.go("ai") });
-  listRow(rows, {
-    icon: "smartphone",
-    title: tr("Other devices"),
-    desc: tr("Connect a phone or another computer by scanning a QR code."),
-    onClick: () => ctx.go("devices"),
-  });
 
   renderConnection(ctx, el);
   renderAbout(ctx, el);
@@ -65,7 +76,7 @@ const renderNotSetUp = (ctx: SettingsContext, el: HTMLElement) => {
   const hero = el.createDiv({ cls: "obsi-ui-hero" });
   setIcon(hero.createDiv({ cls: "obsi-ui-hero-icon" }), "refresh-cw");
   const text = hero.createDiv({ cls: "obsi-ui-hero-text" });
-  text.createDiv({ cls: "obsi-ui-hero-title", text: tr("Obsi Sync is not set up yet") });
+  text.createDiv({ cls: "obsi-ui-hero-title", text: tr("Sync and MCP is not set up yet") });
   text.createDiv({ cls: "obsi-ui-hero-desc", text: tr("Nothing is synced until this vault is connected to your server. Setup takes about a minute.") });
   const choices = el.createDiv({ cls: "obsi-ui-choices" });
   choiceCard(choices, {
@@ -77,7 +88,7 @@ const renderNotSetUp = (ctx: SettingsContext, el: HTMLElement) => {
   choiceCard(choices, {
     icon: "smartphone",
     title: tr("Copy setup from another device"),
-    desc: tr("Obsi Sync already works on another device. Use its QR code or setup text."),
+    desc: tr("Sync and MCP already works on another device. Use its QR code or setup text."),
     onClick: () => ctx.plugin.openSetup("import"),
   });
 };
@@ -123,7 +134,7 @@ const renderStatusHero = (ctx: SettingsContext, el: HTMLElement) => {
         break;
       case "error":
         title.setText(tr("Sync needs attention"));
-        desc.setText(tr("The last sync {time} did not finish. Obsi Sync will retry automatically.", { time: relativeTime(last) }));
+        desc.setText(tr("The last sync {time} did not finish. Sync and MCP will retry automatically.", { time: relativeTime(last) }));
         break;
       case "synced":
         title.setText(tr("Everything is synced"));
@@ -197,7 +208,7 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
     } catch (e) {
       const p = connectProblem(e);
       callout(result, "error", {
-        bad_url: tr("No Obsi server answered at this address. Check the address and the port."),
+        bad_url: tr("No Sync and MCP server answered at this address. Check the address and the port."),
         unreachable: tr("Can't reach the server. Check the address and your internet connection."),
         bad_token: tr("The server didn't accept this token. Copy it again, without extra spaces."),
         server_error: tr("The server returned an error: {error}", { error: errorText(e) }),
@@ -244,7 +255,7 @@ const renderConnection = (ctx: SettingsContext, el: HTMLElement) => {
 const renderAbout = (ctx: SettingsContext, el: HTMLElement) => {
   const { plugin, state } = ctx;
   const about = el.createDiv({ cls: "obsi-ui-about" });
-  const version = about.createEl("button", { cls: "obsi-ui-link", text: tr("Obsi Sync {version}", { version: plugin.manifest.version }) });
+  const version = about.createEl("button", { cls: "obsi-ui-link", text: tr("Sync and MCP {version}", { version: plugin.manifest.version }) });
   version.addEventListener("click", () => {
     if (state.devUnlocked) return;
     if (++state.devClicks >= 7) {

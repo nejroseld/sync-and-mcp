@@ -1,11 +1,11 @@
 ---
 name: obsi-plugin-docs
-description: Keep Obsi Sync plugin documentation accurate whenever a user-facing feature, setting, workflow, or behavior is added or changed in this repository.
+description: Keep Sync and MCP plugin documentation accurate whenever a user-facing feature, setting, workflow, or behavior is added or changed in this repository.
 ---
 
 # Keep plugin documentation current
 
-Use this skill while implementing or changing an Obsi Sync feature. Treat documentation as part of the feature, completed in the same task.
+Use this skill while implementing or changing an Sync and MCP feature. Treat documentation as part of the feature, completed in the same task.
 
 1. Read the relevant part of `docs/PLUGIN.md` before editing behavior. Read `docs/ARCHITECTURE.md`, `docs/CODEMAP.md`, or `docs/API.md` only if the change affects their subjects.
 2. After implementation, update `docs/PLUGIN.md` so a user can understand the resulting behavior without reading code. Cover the entry point, steps, defaults, prerequisites, data or security implications, and migration or failure behavior when relevant. Update `README.md` only when its quick start or summary changes.

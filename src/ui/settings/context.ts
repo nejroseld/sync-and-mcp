@@ -1,6 +1,6 @@
 import type { App } from "obsidian";
 import type { RulesConfig } from "../../ai/rules";
-import type { InviteInfo, TokenInfo, UserAccountInfo } from "../../api/types";
+import type { InviteInfo, TokenInfo, UserAccountInfo, VaultInfo } from "../../api/types";
 import type ObsiSyncPlugin from "../../main";
 
 export type SectionId = "overview" | "sync" | "folders" | "devices" | "ai" | "server" | "dev";
@@ -35,7 +35,8 @@ export interface SettingsState {
   admin: {
     loaded: boolean;
     loading: boolean;
-    tokens: TokenInfo[];
+    /** all vaults on the server, as the admin token sees them */
+    vaults: VaultInfo[];
     invites: InviteInfo[];
     users: UserAccountInfo[];
     embedding: { base_url: string; api_key: string; model: string };
@@ -56,7 +57,7 @@ export const initialState = (): SettingsState => ({
   qrVisible: false,
   account: { loaded: false, loading: false, token: "", accountToken: false, tokens: [] },
   newDevice: undefined,
-  admin: { loaded: false, loading: false, tokens: [], invites: [], users: [], embedding: { base_url: "", api_key: "", model: "" } },
+  admin: { loaded: false, loading: false, vaults: [], invites: [], users: [], embedding: { base_url: "", api_key: "", model: "" } },
   devClicks: 0,
   devUnlocked: false,
 });

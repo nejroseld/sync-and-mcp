@@ -63,7 +63,7 @@ export default class ObsiSyncPlugin extends Plugin {
       if (isConfigured(this.settings)) void this.syncManager.syncAll("manual");
       else this.openSetup();
     };
-    this.addRibbonIcon("refresh-cw", t("Obsi Sync: sync now"), syncNow);
+    this.addRibbonIcon("refresh-cw", t("Sync and MCP: sync now"), syncNow);
     this.addCommand({ id: "sync-now", name: t("Sync now"), callback: syncNow });
     this.addCommand({ id: "set-up", name: t("Set up"), callback: () => this.openSetup() });
     this.addCommand({ id: "open-settings", name: t("Open settings"), callback: () => this.openSettings() });
@@ -82,7 +82,7 @@ export default class ObsiSyncPlugin extends Plugin {
       name: t("Publish AI Available now"),
       callback: async () => {
         const r = await this.publisher.runNow();
-        new Notice(r.skipped ? `Obsi Sync: ${r.skipped}` : t("Obsi Sync: AI Available published"));
+        new Notice(r.skipped ? `Sync and MCP: ${r.skipped}` : t("Sync and MCP: AI Available published"));
       },
     });
     this.addCommand({
@@ -92,8 +92,8 @@ export default class ObsiSyncPlugin extends Plugin {
         const r = await this.applier.runNow();
         new Notice(
           r.skipped
-            ? `Obsi Sync: ${r.skipped}`
-            : t("Obsi Sync: applied {applied}, conflicts {conflicts}, rejected {rejected}", {
+            ? `Sync and MCP: ${r.skipped}`
+            : t("Sync and MCP: applied {applied}, conflicts {conflicts}, rejected {rejected}", {
                 applied: r.applied, conflicts: r.conflicts, rejected: r.rejected,
               })
         );
@@ -193,7 +193,7 @@ export default class ObsiSyncPlugin extends Plugin {
       await this.applier.runNow();
       await this.publisher.runNow();
     } catch (e) {
-      console.warn("obsi-sync: post-sync tasks failed", e);
+      console.warn("sync-and-mcp: post-sync tasks failed", e);
     }
   }
 
@@ -224,7 +224,7 @@ export default class ObsiSyncPlugin extends Plugin {
     this.settings.syncEnabled = enabled;
     await this.saveSettings();
     this.updateStatus();
-    new Notice(enabled ? t("Obsi Sync: sync resumed") : t("Obsi Sync: sync paused"));
+    new Notice(enabled ? t("Sync and MCP: sync resumed") : t("Sync and MCP: sync paused"));
     if (enabled) void this.syncManager.syncAll("auto");
   }
 
@@ -259,7 +259,7 @@ export default class ObsiSyncPlugin extends Plugin {
       this.vaults = await api.listVaults();
     } catch (e) {
       // offline or bad token: keep whatever we knew
-      console.debug("obsi-sync: refreshMe failed", e);
+      console.debug("sync-and-mcp: refreshMe failed", e);
     }
   }
 

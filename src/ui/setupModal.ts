@@ -164,7 +164,7 @@ export class SetupModal extends Modal {
     const el = this.contentEl;
     const hero = el.createDiv({ cls: "obsi-sync-setup-hero" });
     setIcon(hero.createDiv({ cls: "obsi-sync-setup-hero-icon" }), "refresh-cw");
-    hero.createEl("h2", { cls: "obsi-sync-setup-title", text: tr("Welcome to Obsi Sync") });
+    hero.createEl("h2", { cls: "obsi-sync-setup-title", text: tr("Welcome to Sync and MCP") });
     hero.createEl("p", { cls: "obsi-sync-setup-lead", text: tr("Keep this vault in sync across all your devices, privately.") });
 
     const features = el.createDiv({ cls: "obsi-sync-setup-features" });
@@ -194,21 +194,21 @@ export class SetupModal extends Modal {
     choiceCard(cards, {
       icon: "log-in",
       title: tr("Sign in to my account"),
-      desc: tr("You already have an account on an Obsi server."),
+      desc: tr("You already have an account on a Sync and MCP server."),
       // running setup again: the saved token already works, no need to type the password
       onClick: () => connect(this.plugin.settings.deviceToken ? "token" : "login"),
     });
     choiceCard(cards, {
       icon: "smartphone",
       title: tr("Copy setup from another device"),
-      desc: tr("Obsi Sync already works on another device. Use its QR code or setup text."),
+      desc: tr("Sync and MCP already works on another device. Use its QR code or setup text."),
       onClick: () => this.go("import"),
     });
 
     const later = el.createDiv({ cls: "obsi-sync-setup-later" });
     const skip = later.createEl("button", { cls: "obsi-sync-setup-link", text: tr("Not now") });
     skip.addEventListener("click", () => this.close());
-    later.createSpan({ text: tr("You can come back any time with the “Obsi Sync: Set up” command.") });
+    later.createSpan({ text: tr("You can come back any time with the “Sync and MCP: Set up” command.") });
   }
 
   private renderServer() {
@@ -217,7 +217,7 @@ export class SetupModal extends Modal {
     if (mode === "register") {
       this.header(tr("Create your account"), tr("Paste the invitation you received: it has the server address and a one-time code. Then choose a username and an account password."));
     } else if (mode === "login") {
-      this.header(tr("Sign in to your account"), tr("Use the username and password of your account on the Obsi server."));
+      this.header(tr("Sign in to your account"), tr("Use the username and password of your account on the Sync and MCP server."));
     } else {
       this.header(tr("Connect with an access token"), tr("For a device or access token that the server admin gave you."));
     }
@@ -336,7 +336,7 @@ export class SetupModal extends Modal {
           const problem = connectProblem(e);
           const detail = errorText(e);
           callout(errorBox, "error", {
-            bad_url: tr("No Obsi server answered at this address. Check the address and the port."),
+            bad_url: tr("No Sync and MCP server answered at this address. Check the address and the port."),
             unreachable: tr("Can't reach the server. Check the address and your internet connection."),
             bad_token: tr("The server didn't accept this token. Copy it again, without extra spaces."),
             server_error: tr("The server returned an error: {error}", { error: detail }),
@@ -424,7 +424,7 @@ export class SetupModal extends Modal {
     );
     let name = this.app.vault.getName();
     const form = this.contentEl.createDiv({ cls: "obsi-sync-setup-form" });
-    const { input } = textField(form, { name: tr("Vault name"), desc: tr("Only you see it, in Obsi Sync and in AI assistants."), value: name, onChange: (v) => (name = v) });
+    const { input } = textField(form, { name: tr("Vault name"), desc: tr("Only you see it, in Sync and MCP and in AI assistants."), value: name, onChange: (v) => (name = v) });
     window.setTimeout(() => input.select(), 0);
     const errorBox = this.contentEl.createDiv();
     this.footer(() => this.go("server"), {
@@ -528,7 +528,7 @@ export class SetupModal extends Modal {
   private renderImport() {
     this.header(
       tr("Copy setup from another device"),
-      tr("On the other device open Settings → Obsi Sync → Devices and press “Show QR code”. Then scan it or paste its setup text (device-adder) here.")
+      tr("On the other device open Settings → Sync and MCP → Devices and press “Show QR code”. Then scan it or paste its setup text (device-adder) here.")
     );
     const el = this.contentEl;
     const scan = el.createDiv({ cls: "obsi-sync-setup-scan" });
@@ -558,7 +558,7 @@ export class SetupModal extends Modal {
             callout(status, "warning", tr("Import replaces this device's server address, device token and vault mounts. Existing local files are not deleted."));
           }
         } catch (e) {
-          callout(status, "error", tr("This is not valid Obsi Sync setup text: {error}", { error: errorText(e) }));
+          callout(status, "error", tr("This is not valid Sync and MCP setup text: {error}", { error: errorText(e) }));
         }
       }
       connectButton?.setDisabled(!parsed);
@@ -641,7 +641,7 @@ export class SetupModal extends Modal {
       icon.addClass("is-error");
       setIcon(icon, "alert-triangle");
       hero.createEl("h2", { cls: "obsi-sync-setup-title", text: tr("Connected, but the first sync didn't finish") });
-      hero.createEl("p", { cls: "obsi-sync-setup-lead", text: tr("Your settings are saved and Obsi Sync will retry automatically. You can also try again now.") });
+      hero.createEl("p", { cls: "obsi-sync-setup-lead", text: tr("Your settings are saved and Sync and MCP will retry automatically. You can also try again now.") });
       if (this.finishError) callout(el, "error", this.finishError);
       this.footer(undefined, { label: tr("Try again"), busyLabel: tr("Syncing..."), run: () => this.runFirstSync() }, { label: tr("Close"), run: () => this.close() });
       return;
@@ -688,8 +688,8 @@ export class SetupModal extends Modal {
         : tr("AI can read only the notes allowed by the AI rules, for example with “ai” ticked."));
     }
     tip("smartphone", this.hasUserAccount
-      ? tr("To add another device, open Settings → Obsi Sync → Devices: each device gets its own QR code and can be disconnected separately.")
-      : tr("To add another device, open Settings → Obsi Sync → Devices and scan the QR code there."));
+      ? tr("To add another device, open Settings → Sync and MCP → Devices: each device gets its own QR code and can be disconnected separately.")
+      : tr("To add another device, open Settings → Sync and MCP → Devices and scan the QR code there."));
     this.footer(
       undefined,
       { label: tr("Start using"), run: () => this.close() },

@@ -70,7 +70,7 @@ export class AiPublisher {
       } while (this.again);
       return this.last;
     } catch (e) {
-      console.error("obsi-sync: publish failed", e);
+      console.error("sync-and-mcp: publish failed", e);
       this.last = { skipped: String(e), perVault: [] };
       return this.last;
     } finally {
