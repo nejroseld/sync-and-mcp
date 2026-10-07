@@ -119,6 +119,24 @@ export const renderAi = (ctx: SettingsContext, el: HTMLElement) => {
 
   const adv = details(el, tr("Advanced"));
   selectField(adv, {
+    name: tr("Wait before sharing a new note"),
+    desc: tr("With “All notes except private ones”, a new note stays on this device for this long so you can tick private. Then it is shared on its own. “Right away” shares it as soon as it is saved."),
+    options: [
+      [0, tr("Right away")],
+      [1, tr("1 minute")],
+      [5, tr("5 minutes")],
+      [10, tr("10 minutes")],
+      [30, tr("30 minutes")],
+      [60, tr("1 hour")],
+    ],
+    value: s.aiPrivateHoldMinutes,
+    onChange: async (v) => {
+      s.aiPrivateHoldMinutes = v;
+      await ctx.save();
+      plugin.publisher.schedule();
+    },
+  });
+  selectField(adv, {
     name: tr("Largest file to share"),
     desc: tr("Bigger attachments are not shared with AI."),
     options: [[5, "5 MB"], [10, "10 MB"], [25, "25 MB"], [50, "50 MB"], [100, "100 MB"]],

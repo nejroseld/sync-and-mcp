@@ -742,6 +742,7 @@ export class SetupModal extends Modal {
     s.deviceToken = data.deviceToken;
     s.mounts = data.mounts;
     s.onboardingDone = true;
+    s.syncReviewHold = wasConfigured;
     this.ai = "off"; // AI rules travel with the vault itself
     await this.plugin.saveSettings();
     this.plugin.me = undefined;
@@ -758,6 +759,10 @@ export class SetupModal extends Modal {
 
   /** Rules are created only after a successful first sync, so rules from another device win. */
   private async runFirstSync() {
+    if (this.plugin.settings.syncReviewHold) {
+      this.plugin.settings.syncReviewHold = false;
+      await this.plugin.saveSettings();
+    }
     this.finish = "syncing";
     this.step = "finish";
     this.render();

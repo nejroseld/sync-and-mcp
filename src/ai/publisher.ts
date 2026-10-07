@@ -1,4 +1,4 @@
-import { type App, TFile } from "obsidian";
+import { type App, TFile, parseYaml } from "obsidian";
 import { ApiError, type ObsiApi } from "../api/client";
 import type { MountConfig, ObsiSettings } from "../settings";
 import { normalizeMountPath } from "../sync/mounts";
@@ -10,7 +10,8 @@ import {
   relPathFor,
   sha256Hex,
 } from "./publish";
-import { computeAllowedPaths } from "./rules";
+import { extractFrontmatterText } from "./changes";
+import { computeAllowedPaths, decisionHoldRemainingMs, defaultRegistry, evaluateNote, type RulesConfig } from "./rules";
 import type { RulesStore } from "./rulesStore";
 import { takeSnapshot } from "./vaultSnapshot";
 
@@ -36,6 +37,8 @@ export interface PublishReport {
 export class AiPublisher {
   private hashCache = new Map<string, { mtime: number; size: number; hash: string }>();
   private timer: number | undefined;
+  /** Fires when a new note's private-checkbox pause ends, so it publishes without another edit. */
+  private holdTimer: number | undefined;
   private running = false;
   private again = false;
   last: PublishReport | undefined;
@@ -45,6 +48,9 @@ export class AiPublisher {
   /** debounced */
   schedule() {
     if (!this.host.settings.aiEnabled) return;
+    // A change during a publish (for example ticking private) must revoke in this pass,
+    // not after another debounce, or the plaintext put can land first and be indexed.
+    if (this.running) this.again = true;
     if (this.timer !== undefined) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
       this.timer = undefined;
@@ -55,6 +61,7 @@ export class AiPublisher {
   stop() {
     if (this.timer !== undefined) window.clearTimeout(this.timer);
     this.timer = undefined;
+    this.armHoldRelease(undefined);
   }
 
   async runNow(): Promise<PublishReport> {
@@ -96,7 +103,9 @@ export class AiPublisher {
     }
 
     const app = this.host.app;
-    const allowed = computeAllowedPaths(parsed.config, takeSnapshot(app));
+    const snapshot = takeSnapshot(app);
+    const holdMs = this.privateHoldMs();
+    const allowed = computeAllowedPaths(parsed.config, snapshot, defaultRegistry(), holdMs);
     const grouped = groupAllowedByMount(allowed, mounts);
     const writable = this.host.writableVaults();
     const maxBytes = s.aiMaxFileMB * 1024 * 1024;
@@ -126,11 +135,33 @@ export class AiPublisher {
           });
           fileByRel.set(rel, f);
         }
+        const rejected = new Set<string>();
+        for (const item of desired) {
+          if (item.kind !== "note") continue;
+          const f = fileByRel.get(item.relPath);
+          if (!f) {
+            rejected.add(item.vaultPath);
+            continue;
+          }
+          try {
+            if (!this.noteBytesAllowed(parsed.config, f, await app.vault.readBinary(f))) {
+              rejected.add(item.vaultPath);
+            }
+          } catch {
+            rejected.add(item.vaultPath);
+          }
+        }
+        const fresh = desired.filter((item) => item.kind !== "note" || !rejected.has(item.vaultPath));
         const manifest = await api.aiManifest(m.vaultId);
-        const diff = computePublishDiff(desired, manifest);
+        const diff = computePublishDiff(fresh, manifest);
         for (const d of diff.put) {
           const f = fileByRel.get(d.relPath)!;
           const content = await app.vault.readBinary(f);
+          if (d.kind === "note" && !this.noteBytesAllowed(parsed.config, f, content)) {
+            await api.aiDelete(m.vaultId, d.relPath);
+            row.deleted++;
+            continue;
+          }
           const res = await api.aiPut(m.vaultId, d.relPath, content, f.stat.mtime);
           if (res === "stale") row.stale++;
           else row.put++;
@@ -143,7 +174,53 @@ export class AiPublisher {
         row.error = e instanceof ApiError ? e.message : String(e);
       }
     }
+    this.armHoldRelease(decisionHoldRemainingMs(parsed.config, snapshot, holdMs));
     return report;
+  }
+
+  /** 0 shares a new note immediately; otherwise minutes from this device's setting. */
+  private privateHoldMs(): number {
+    const minutes = this.host.settings.aiPrivateHoldMinutes;
+    if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes <= 0) return 0;
+    return minutes * 60_000;
+  }
+
+  private armHoldRelease(waitMs: number | undefined) {
+    if (this.holdTimer !== undefined) window.clearTimeout(this.holdTimer);
+    this.holdTimer = undefined;
+    if (waitMs === undefined || !(waitMs > 0) || !this.host.settings.aiEnabled) return;
+    this.holdTimer = window.setTimeout(() => {
+      this.holdTimer = undefined;
+      void this.runNow();
+    }, Math.max(250, Math.ceil(waitMs) + 500));
+  }
+
+  /** Frontmatter is read from these bytes, not the metadata cache, so a just-ticked private note is not uploaded. */
+  private noteBytesAllowed(config: RulesConfig, f: TFile, bytes: ArrayBuffer): boolean {
+    const raw = extractFrontmatterText(new TextDecoder().decode(bytes));
+    let fm: Record<string, unknown> | undefined;
+    if (raw !== undefined) {
+      try {
+        const v = parseYaml(raw);
+        if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+        fm = v as Record<string, unknown>;
+      } catch {
+        return false;
+      }
+    }
+    const tags = this.host.app.metadataCache.getFileCache(f)?.tags?.map((t) => t.tag);
+    return evaluateNote(
+      config,
+      defaultRegistry(),
+      {
+        path: f.path,
+        frontmatter: fm,
+        inlineTags: tags,
+        ctime: f.stat.ctime,
+        now: Date.now(),
+      },
+      this.privateHoldMs()
+    );
   }
 
   private async hashOf(f: TFile): Promise<string> {

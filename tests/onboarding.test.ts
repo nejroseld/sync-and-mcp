@@ -24,6 +24,14 @@ describe("setup state", () => {
     expect(isConfigured(s)).to.equal(false);
     expect(s.onboardingDone).to.equal(false);
     expect(s.syncOnSave).to.equal(true);
+    expect(s.aiPrivateHoldMinutes).to.equal(10);
+  });
+
+  it("keeps a custom pause before a new note is shared", () => {
+    expect(normalizeSettings({ aiPrivateHoldMinutes: 0 }).aiPrivateHoldMinutes).to.equal(0);
+    expect(normalizeSettings({ aiPrivateHoldMinutes: 30.4 }).aiPrivateHoldMinutes).to.equal(30);
+    expect(normalizeSettings({ aiPrivateHoldMinutes: -1 }).aiPrivateHoldMinutes).to.equal(10);
+    expect(normalizeSettings({ aiPrivateHoldMinutes: 10_000 }).aiPrivateHoldMinutes).to.equal(24 * 60);
   });
 
   it("needs server, token and a mount with vault + password", () => {

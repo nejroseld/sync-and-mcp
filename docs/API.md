@@ -99,7 +99,7 @@ Streamable HTTP transport (MCP spec 2025-06-18; принимаем и `2025-03-2
 | `write_note` | `vault`, `path`, `content`, `base_version` (null = создать) | `write` | `{change_id, status:"pending"}`; конфликт → isError с текущей `version` |
 | `get_change_status` | `change_id` | `write` на vault изменения | `{id, status, message, new_version}` |
 
-Поиск идёт только по vault'ам с грантом `search` и только по данным AI Available. Семантический режим
+Поиск идёт только по vault'ам с грантом `search` и только по текущим опубликованным заметкам (`.md` в AI Available той же версии). Вложения и снятые с публикации заметки в индекс не попадают. Семантический режим
 недоступен (→ текстовый, с пометкой), если embedding не настроен или RAG vault'а выключен.
 
 ## Заметки реализации сервера (уточнения к контракту)

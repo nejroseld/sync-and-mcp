@@ -6,6 +6,8 @@ import {
   computeAllowedPaths,
   defaultRegistry,
   evaluateNote,
+  NEW_NOTE_DECISION_HOLD_MS,
+  decisionHoldRemainingMs,
   folderMatcher,
   normalizeTags,
   parseRulesJson,
@@ -271,5 +273,92 @@ describe("rules: registry and file format", () => {
     );
     expect(p.errors.length).to.be.greaterThan(0);
     expect(p.config.mode).to.equal("deny_by_default");
+  });
+});
+
+describe("rules: decision hold before a note is marked private", () => {
+  const hold = NEW_NOTE_DECISION_HOLD_MS;
+  const now = 1_000_000_000_000;
+  const rule: RuleBase = {
+    id: "r1",
+    type: "property",
+    effect: "exclude",
+    key: "private",
+    op: "equals",
+    value: true,
+    addToNewNotes: true,
+  };
+  const c = cfg("allow_by_default", [rule]);
+  const young = { ctime: now - 1000, now };
+
+  it("withholds a new note while private is still the default false", () => {
+    const reg = defaultRegistry();
+    expect(evaluateNote(c, reg, { path: "a.md", frontmatter: { private: false }, ...young })).to.equal(false);
+    expect(evaluateNote(c, reg, { path: "a.md", frontmatter: { private: "false" }, ...young })).to.equal(false);
+    expect(evaluateNote(c, reg, { path: "a.md", ...young })).to.equal(false);
+  });
+
+  it("publishes a new note immediately when the pause is turned off", () => {
+    expect(evaluateNote(c, defaultRegistry(), { path: "a.md", frontmatter: { private: false }, ...young }, 0)).to.equal(true);
+  });
+
+  it("uses the configured pause instead of the ten-minute default", () => {
+    const short = 60_000;
+    expect(evaluateNote(c, defaultRegistry(), { path: "a.md", frontmatter: { private: false }, ctime: now - 30_000, now }, short)).to.equal(false);
+    expect(evaluateNote(c, defaultRegistry(), { path: "a.md", frontmatter: { private: false }, ctime: now - short - 1, now }, short)).to.equal(true);
+  });
+
+  it("publishes on its own after the window if private stays false", () => {
+    const old = { ctime: now - hold - 1, now };
+    expect(evaluateNote(c, defaultRegistry(), { path: "a.md", frontmatter: { private: false }, ...old })).to.equal(true);
+    expect(evaluateNote(c, defaultRegistry(), { path: "old.md", frontmatter: { private: false } })).to.equal(true);
+  });
+
+  it("a ticked private note stays hidden without any extra toggle", () => {
+    expect(evaluateNote(c, defaultRegistry(), { path: "a.md", frontmatter: { private: true }, ...young })).to.equal(false);
+    expect(evaluateNote(c, defaultRegistry(), { path: "a.md", frontmatter: { private: true }, ctime: now - hold - 1, now })).to.equal(false);
+  });
+
+  it("does not delay the opt-in ai checkbox", () => {
+    const ai = cfg("deny_by_default", [prop("r1", "include", "ai", "equals", true)]);
+    (ai.rules[0] as RuleBase).addToNewNotes = true;
+    expect(evaluateNote(ai, defaultRegistry(), { path: "a.md", frontmatter: { ai: true }, ...young })).to.equal(true);
+    expect(evaluateNote(ai, defaultRegistry(), { path: "a.md", frontmatter: { ai: false }, ...young })).to.equal(false);
+  });
+
+  it("withholds a young note and its attachment, then shares it once the window has passed", () => {
+    const youngAllowed = computeAllowedPaths(c, {
+      files: ["new.md", "old.md", "pic.png"],
+      frontmatter: () => ({ private: false }),
+      resolvedLinks: { "new.md": { "pic.png": 1 } },
+      ctime: (p) => (p === "new.md" ? now - 1000 : now - hold - 1),
+      now,
+    });
+    expect(youngAllowed.has("new.md")).to.equal(false);
+    expect(youngAllowed.has("pic.png")).to.equal(false);
+    expect(youngAllowed.has("old.md")).to.equal(true);
+    const later = computeAllowedPaths(c, {
+      files: ["new.md", "pic.png"],
+      frontmatter: () => ({ private: false }),
+      resolvedLinks: { "new.md": { "pic.png": 1 } },
+      ctime: () => now - hold - 1,
+      now,
+    });
+    expect([...later].sort()).to.deep.equal(["new.md", "pic.png"]);
+  });
+
+  it("says when the soonest new note will publish itself", () => {
+    const left = decisionHoldRemainingMs(
+      c,
+      {
+        files: ["new.md", "old.md", "secret.md"],
+        frontmatter: (p) => ({ private: p === "secret.md" }),
+        ctime: (p) => (p === "old.md" ? now - hold - 1 : now - 1000),
+        now,
+      },
+      hold
+    );
+    expect(left).to.equal(hold - 1000);
+    expect(decisionHoldRemainingMs(c, { files: ["a.md"], frontmatter: () => ({ private: false }), ctime: () => now - 1000, now }, 0)).to.equal(undefined);
   });
 });

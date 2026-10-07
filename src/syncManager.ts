@@ -32,6 +32,7 @@ export interface SyncHost {
   getApi(): ObsiApi | undefined;
   setStatus(text: string): void;
   onSyncFinished(allOk: boolean): void;
+  persistSettings?(): Promise<void>;
 }
 
 /**
@@ -80,6 +81,12 @@ export class SyncManager {
     if (!s.syncEnabled) {
       if (trigger === "manual") new Notice(t("Sync and MCP: sync is disabled in settings"));
       return false;
+    }
+    // A replaced setup must not upload the vault until the user starts a sync.
+    if (s.syncReviewHold && trigger !== "manual") return false;
+    if (s.syncReviewHold && trigger === "manual") {
+      s.syncReviewHold = false;
+      await this.host.persistSettings?.();
     }
     const api = this.host.getApi();
     if (!api) {

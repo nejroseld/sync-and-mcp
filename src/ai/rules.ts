@@ -232,14 +232,26 @@ export const matchingRules = (
   return res;
 };
 
+/** How long a new note with the default unticked private checkbox stays unpublished. */
+export const NEW_NOTE_DECISION_HOLD_MS = 10 * 60 * 1000;
+
 /**
  * Notes: all matching rules collected; any exclude => denied (privacy beats everything,
- * regardless of rule type); else any include => allowed; else the default mode.
+ * regardless of rule type). A new note whose private checkbox is still the default
+ * `false` is withheld for a short window, then published on its own. Otherwise any
+ * include => allowed; else the default mode.
  */
 export const evaluateNote = (
   config: RulesConfig,
   registry: RuleMatcherRegistry,
-  note: { path: string; frontmatter?: Record<string, unknown>; inlineTags?: string[] }
+  note: {
+    path: string;
+    frontmatter?: Record<string, unknown>;
+    inlineTags?: string[];
+    ctime?: number;
+    now?: number;
+  },
+  holdMs = NEW_NOTE_DECISION_HOLD_MS
 ): boolean => {
   const matched = matchingRules(config, registry, {
     path: note.path,
@@ -248,6 +260,13 @@ export const evaluateNote = (
     inlineTags: note.inlineTags,
   });
   if (matched.some((r) => r.effect === "exclude")) {
+    return false;
+  }
+  if (
+    note.ctime !== undefined &&
+    note.now !== undefined &&
+    noteDecisionPending(config, note.frontmatter, { ctime: note.ctime, now: note.now }, holdMs)
+  ) {
     return false;
   }
   if (matched.some((r) => r.effect === "include")) {
@@ -276,7 +295,76 @@ export interface VaultSnapshot {
   inlineTags?: (path: string) => string[] | undefined;
   /** Obsidian metadataCache.resolvedLinks: source path -> { target path -> count } */
   resolvedLinks: Record<string, Record<string, number>>;
+  /** creation time, ms epoch. With `now`, withholds a new note still at `private: false`. */
+  ctime?: (path: string) => number | undefined;
+  /** evaluation time, ms epoch. Defaults to Date.now() when `ctime` is set. */
+  now?: number;
 }
+
+export interface NoteClock {
+  ctime: number;
+  now: number;
+}
+
+const sameBoolean = (value: unknown, expected: boolean) => {
+  if (typeof value === "boolean") return value === expected;
+  if (typeof value === "string") return lc(value) === String(expected);
+  return false;
+};
+
+/** Exclude checkboxes stamped onto new notes as the sharing default (private: false). */
+const decisionHoldRules = (config: RulesConfig): PropertyRule[] =>
+  config.rules.filter(
+    (r): r is PropertyRule => r.addToNewNotes === true && r.effect === "exclude" && isCheckboxRule(r)
+  );
+
+/**
+ * True while a new note still has the automatic "not private" value, so the user can
+ * tick the checkbox before the note publishes itself. After the window, `false` publishes.
+ * Ticking private is an exclude and is handled before this. Notes without a clock,
+ * and the opt-in `ai` preset, are unchanged.
+ */
+export const noteDecisionPending = (
+  config: RulesConfig,
+  frontmatter: Record<string, unknown> | undefined,
+  clock: NoteClock | undefined,
+  holdMs = NEW_NOTE_DECISION_HOLD_MS
+): boolean => {
+  if (!(holdMs > 0)) return false;
+  const rules = decisionHoldRules(config);
+  if (rules.length === 0 || !clock) return false;
+  if (!Number.isFinite(clock.ctime) || !Number.isFinite(clock.now)) return false;
+  const age = clock.now - clock.ctime;
+  if (!Number.isFinite(age) || age >= holdMs) return false;
+  return rules.some((r) => {
+    const found = findKey(frontmatter, r.key);
+    if (!found || found.value === undefined || found.value === null) return true;
+    return sameBoolean(found.value, !r.value);
+  });
+};
+
+/**
+ * Milliseconds until the soonest withheld note publishes itself.
+ * Undefined when nothing is waiting on the private-checkbox pause.
+ */
+export const decisionHoldRemainingMs = (
+  config: RulesConfig,
+  snapshot: Pick<VaultSnapshot, "files" | "frontmatter" | "ctime" | "now">,
+  holdMs = NEW_NOTE_DECISION_HOLD_MS
+): number | undefined => {
+  if (!(holdMs > 0) || !snapshot.ctime) return undefined;
+  const now = snapshot.now ?? Date.now();
+  let soonest: number | undefined;
+  for (const p of snapshot.files) {
+    if (!isNotePath(p)) continue;
+    const ctime = snapshot.ctime(p);
+    if (ctime === undefined || !Number.isFinite(ctime)) continue;
+    if (!noteDecisionPending(config, snapshot.frontmatter(p), { ctime, now }, holdMs)) continue;
+    const left = holdMs - (now - ctime);
+    if (soonest === undefined || left < soonest) soonest = left;
+  }
+  return soonest;
+};
 
 /**
  * Whole-vault evaluation. Returns the set of allowed vault paths (notes + attachments).
@@ -285,7 +373,8 @@ export interface VaultSnapshot {
 export const computeAllowedPaths = (
   config: RulesConfig,
   snapshot: VaultSnapshot,
-  registry: RuleMatcherRegistry = defaultRegistry()
+  registry: RuleMatcherRegistry = defaultRegistry(),
+  holdMs = NEW_NOTE_DECISION_HOLD_MS
 ): Set<string> => {
   const allowed = new Set<string>();
   const fileSet = new Set(snapshot.files);
@@ -293,11 +382,18 @@ export const computeAllowedPaths = (
   for (const p of snapshot.files) {
     if (!isNotePath(p)) continue;
     if (
-      evaluateNote(config, registry, {
-        path: p,
-        frontmatter: snapshot.frontmatter(p),
-        inlineTags: snapshot.inlineTags?.(p),
-      })
+      evaluateNote(
+        config,
+        registry,
+        {
+          path: p,
+          frontmatter: snapshot.frontmatter(p),
+          inlineTags: snapshot.inlineTags?.(p),
+          ctime: snapshot.ctime?.(p),
+          now: snapshot.ctime ? (snapshot.now ?? Date.now()) : undefined,
+        },
+        holdMs
+      )
     ) {
       allowed.add(p);
       allowedNotes.push(p);

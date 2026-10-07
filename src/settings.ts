@@ -35,10 +35,17 @@ export interface ObsiSettings {
   aiEnabled: boolean;
   aiDebounceSeconds: number;
   aiMaxFileMB: number;
+  /**
+   * Minutes a new note with the default unticked private checkbox stays on this device
+   * before it is published. 0 publishes it as soon as it is saved.
+   */
+  aiPrivateHoldMinutes: number;
   changesPollMinutes: number;
   statusBar: boolean;
   /** the welcome window was shown (answered or skipped) */
   onboardingDone: boolean;
+  /** after importing a setup over an existing one, skip automatic sync until a manual sync */
+  syncReviewHold: boolean;
 }
 
 export const DEFAULT_SETTINGS: ObsiSettings = {
@@ -59,9 +66,11 @@ export const DEFAULT_SETTINGS: ObsiSettings = {
   aiEnabled: false,
   aiDebounceSeconds: 5,
   aiMaxFileMB: 25,
+  aiPrivateHoldMinutes: 10,
   changesPollMinutes: 2,
   statusBar: true,
   onboardingDone: false,
+  syncReviewHold: false,
 };
 
 /** Enough to sync: server, device token and at least one mount with a vault and a password. */
@@ -86,7 +95,15 @@ export const normalizeSettings = (raw: any): ObsiSettings => {
   if (s.conflictAction !== "keep_larger") s.conflictAction = "keep_newer";
   // installs configured before the welcome window existed should not see it
   if (raw?.onboardingDone === undefined && isConfigured(s)) s.onboardingDone = true;
+  s.syncReviewHold = raw?.syncReviewHold === true;
+  s.aiPrivateHoldMinutes = normalizePrivateHoldMinutes(raw?.aiPrivateHoldMinutes);
   return s;
+};
+
+/** 0 publishes a new note immediately; anything else is minutes, capped at one day. */
+const normalizePrivateHoldMinutes = (raw: unknown): number => {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) return DEFAULT_SETTINGS.aiPrivateHoldMinutes;
+  return Math.min(24 * 60, Math.round(raw));
 };
 
 const EXPORT_MARK = "obsi-sync-mounts";

@@ -51,6 +51,7 @@ export default class ObsiSyncPlugin extends Plugin {
       getApi: () => this.getApi(),
       setStatus: (t) => this.setStatus(t),
       onSyncFinished: () => void this.afterSync(),
+      persistSettings: () => this.saveSettings(),
     });
 
     this.statusBar = new StatusBar(this.addStatusBarItem(), this);

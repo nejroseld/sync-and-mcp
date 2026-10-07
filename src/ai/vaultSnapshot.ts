@@ -19,5 +19,7 @@ export const takeSnapshot = (app: App): VaultSnapshot => {
       return app.metadataCache.getFileCache(f)?.tags?.map((t) => t.tag);
     },
     resolvedLinks: app.metadataCache.resolvedLinks,
+    ctime: (p) => byPath.get(p)?.stat.ctime,
+    now: Date.now(),
   };
 };
